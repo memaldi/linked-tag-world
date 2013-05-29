@@ -15,17 +15,20 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.openrdf.model.Statement;
-import org.openrdf.rio.RDFHandlerException;
-import org.openrdf.rio.RDFParseException;
-import org.openrdf.rio.RDFParser;
-import org.openrdf.rio.helpers.StatementCollector;
-import org.openrdf.rio.rdfxml.RDFXMLParser;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import com.hp.hpl.jena.rdf.model.Literal;
+import com.hp.hpl.jena.rdf.model.Model;
+import com.hp.hpl.jena.rdf.model.ModelFactory;
+import com.hp.hpl.jena.rdf.model.NodeIterator;
+import com.hp.hpl.jena.rdf.model.Property;
+import com.hp.hpl.jena.rdf.model.RDFNode;
+import com.hp.hpl.jena.rdf.model.Resource;
+import com.hp.hpl.jena.vocabulary.RDF;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,6 +56,8 @@ public class LinkedTagWorld {
     private String className;
 
     private List<String> prefixedTypeList;
+    
+    private Model model;
 
 
     public LinkedTagWorld() {
@@ -65,7 +70,7 @@ public class LinkedTagWorld {
         this.inputStream = inputStream;
     }
 
-    public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, RDFParseException, RDFHandlerException, InstantiationException, IllegalAccessException, ClassNotFoundException {
+    public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException {
         DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder docBuilder;
 
@@ -74,17 +79,17 @@ public class LinkedTagWorld {
 
         fillPrefixesMaps(doc);
 
-        Collection<Statement> statementCollection = getStatements(URI);
+        this.model = setModel(URI);
 
-        if (statementCollection != null) {
+        if (this.model.size() > 0) {
         
-	        Map<String, List<Statement>> predicateMap = getPredicateMap(statementCollection);
+        	this.prefixedTypeList = getPrefixedTypeList(this.model);
 	
-	        Node pageNode = getPageNode(doc);
+	        Node pageNode = getPageNode(doc, this.prefixedTypeList);
 	
 	        Map<String, Widget> propertyMap = getPropertyMap(pageNode);
 	
-	        setLayout(propertyMap, predicateMap, doc);
+	        setLayout(propertyMap, doc);
         }
 
     }
@@ -117,8 +122,8 @@ public class LinkedTagWorld {
         }
     }
 
-    private Collection<Statement> getStatements(String URI) throws IOException, RDFParseException, RDFHandlerException {
-
+    private Model setModel(String URI) throws IOException {
+ 	
         HttpClient client = new DefaultHttpClient();
         HttpGet request = new HttpGet(URI);
         request.addHeader("Accept", "application/rdf+xml");
@@ -126,44 +131,35 @@ public class LinkedTagWorld {
         HttpResponse response = client.execute(request);
         InputStream inputStream = response.getEntity().getContent();
 
-        StatementCollector statementCollector = new StatementCollector();
-        RDFParser rdfParser = new RDFXMLParser();
-        rdfParser.setRDFHandler(statementCollector);
-        try{
-        	rdfParser.parse(inputStream, "http://linkedqr/");
-        } catch (RDFParseException e) {
-        	System.out.println("Error parsing  " + URI);
-        	return null;
-        }
-
-        return statementCollector.getStatements();
+        Model model = ModelFactory.createDefaultModel();
+        
+        model.read(inputStream, null);
+        
+        return model;
+        
     }
-
-    private Map<String, List<Statement>> getPredicateMap(Collection<Statement> statementCollection) {
-        Map<String, List<Statement>> predicateMap = new HashMap<String, List<Statement>>();
-        List<String> typeList = new ArrayList<String>();
-
-        for (Statement statement : statementCollection) {
-            String predicate = statement.getPredicate().stringValue().replaceAll("\\u0000", "");
-            if (predicate.equals("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")) {
-                typeList.add(statement.getObject().stringValue().replaceAll("\\u0000", ""));
-            } else {
-                List<Statement> statementList = new ArrayList<Statement>();
-                if (predicateMap.keySet().contains(predicate)) {
-                    statementList = predicateMap.get(predicate);
-                }
-                statementList.add(statement);
-                predicateMap.put(predicate, statementList);
-            }
+    
+    private List<String> getPrefixedTypeList(Model model) {
+    	List<String> typeList = new ArrayList<String>();
+    	NodeIterator typeNodes = model.listObjectsOfProperty(RDF.type);
+        
+        while (typeNodes.hasNext()) {
+        	RDFNode node = typeNodes.nextNode();
+        	if(node.isResource()) {
+        		Resource res = (Resource) node;
+        		String type = res.getURI();
+        		typeList.add(type);
+        	}
         }
-        this.prefixedTypeList = new ArrayList<String>();
+        
+        List<String> prefixedTypeList = new ArrayList<String>();
 
         for (String type : typeList) {
 
-            this.prefixedTypeList.add(String.format("%s:%s", this.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
+            prefixedTypeList.add(String.format("%s:%s", this.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
         }
-
-        return predicateMap;
+        
+        return prefixedTypeList;
     }
 
     private String getPrefix(String URI) {
@@ -179,7 +175,7 @@ public class LinkedTagWorld {
         }
     }
 
-    private Node getPageNode(Document doc) {
+    private Node getPageNode(Document doc, List<String> prefixedTypeList) {
         NodeList pageItemList = doc.getElementsByTagName("pageItem");
 
         Node pageNode = null;
@@ -188,7 +184,7 @@ public class LinkedTagWorld {
             if (node.getNodeName().equals("pageItem")) {
                 Element element = (Element) node;
                 String classAttribute = element.getAttribute("type");
-                if (this.prefixedTypeList.contains(classAttribute)) {
+                if (prefixedTypeList.contains(classAttribute)) {
                     pageNode = node;
                     this.className = element.getAttribute("class");
                 }
@@ -241,7 +237,7 @@ public class LinkedTagWorld {
         return propertyMap;
     }
 
-    private void setLayout(Map<String, Widget> propertyMap, Map<String, List<Statement>> predicateMap, Document doc) throws ClassNotFoundException, InstantiationException, IllegalAccessException, RDFParseException, IOException, RDFHandlerException {
+    private void setLayout(Map<String, Widget> propertyMap, Document doc) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {
         Class<Layout> layoutClass = (Class<Layout>) Class.forName(this.className);
         Layout layout = layoutClass.newInstance();
 
@@ -250,26 +246,27 @@ public class LinkedTagWorld {
         Map<String, Integer> widgetMap = layout.getWidgets();
 
         for (String property : propertyMap.keySet()) {
-            String extendedProperty = this.prefix2uriMap.get(property.split(":")[0]) + property.split(":")[1];
-            if (predicateMap.keySet().contains(extendedProperty)) {
-                Widget widget = propertyMap.get(property);
-                String id = widget.getId();
-                if(widgetMap.keySet().contains(id)) {
-                    List<Statement> statementList = predicateMap.get(extendedProperty);
-                    for (Statement statement : statementList) {
-                        // Mirar los literales con varios idiomas y eso weis
-                        String object = statement.getObject().stringValue().replaceAll("\\u0000", "");
-
-                        // Aquí hay que mirar las condiciones de tipo y eso
-                        int viewID = widgetMap.get(id);
-                        Object view = this.activity.findViewById(viewID);
-
-                        setView(object, view, null, widget, doc);
-
-
-                    }
-                }
-            }
+        	String extendedProperty = this.prefix2uriMap.get(property.split(":")[0]) + property.split(":")[1];
+        	
+        	Property prop = this.model.getProperty(extendedProperty);
+        	NodeIterator nodeIterator = this.model.listObjectsOfProperty(prop);
+        	
+        	while(nodeIterator.hasNext()) {
+        		Widget widget = propertyMap.get(property);
+        		String id = widget.getId();
+        		RDFNode node = nodeIterator.next();
+        		String object = "";
+        		if (node.isLiteral()) {
+        			Literal literalNode = (Literal) node;
+        			object = literalNode.getString();
+        		} else if (node.isResource()) {
+        			Resource resNode = (Resource) node;
+        			object = resNode.getURI();
+        		}
+        		int viewID = widgetMap.get(id);
+        		Object view = this.activity.findViewById(viewID);
+        		setView(object, view, null, widget, doc);
+        	}
         }
 
         clearLayouts(widgetMap);
@@ -287,7 +284,7 @@ public class LinkedTagWorld {
         }
     }
 
-    private void setView(final String object, Object view, Object originalView, Widget widget, Document doc) throws RDFParseException, IOException, RDFHandlerException {
+    private void setView(final String object, Object view, Object originalView, Widget widget, Document doc) throws IOException {
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
             String template = "";
@@ -300,11 +297,11 @@ public class LinkedTagWorld {
             String text = "";
             if (widget.isLinkable()) {
 
-                List<Statement> main = getMain(object, doc);
+                String strObject = getMain(object, doc);
 
                 try {
-                    Statement statement = main.get(0);
-                    text = String.format(template, statement.getObject().stringValue().replaceAll("\\u0000", ""));
+                    //Statement statement = main.get(0);
+                    text = String.format(template, strObject);
 
                     textView.setOnClickListener( new View.OnClickListener() {
                         @Override
@@ -371,11 +368,13 @@ public class LinkedTagWorld {
         }
     }
 
-    private List<Statement> getMain(String URI, Document doc) throws RDFParseException, IOException, RDFHandlerException {
-        Collection<Statement> statementCollection = getStatements(URI);
-        if (statementCollection != null) {
-	        Map<String, List<Statement>> predicateMap = getPredicateMap(statementCollection);
-	        Node pageNode = getPageNode(doc);
+    private String getMain(String URI, Document doc) throws IOException {
+        //Collection<Statement> statementCollection = setModel(URI);
+    	Model uriModel = setModel(URI);
+        if (uriModel.size() > 0) {
+	        //Map<String, List<Statement>> predicateMap = getPredicateMap(statementCollection);
+        	List<String> prefixedTypeList = getPrefixedTypeList(uriModel);
+	        Node pageNode = getPageNode(doc, prefixedTypeList);
 	        //Map<String, Widget> propertyMap = getPropertyMap(pageNode);
 	        //Map<String, Widget> propertyMap = new HashMap<String, Widget>();
 	
@@ -411,7 +410,17 @@ public class LinkedTagWorld {
 	                                //propertyMap.put(property, widget);
 	                                if (widget.isMain()) {
 	                                    String extendedProperty = prefix2uriMap.get(property.split(":")[0]) + property.split(":")[1];
-	                                    return predicateMap.get(extendedProperty);
+	                                    //return predicateMap.get(extendedProperty);
+	                                    
+	                                    Property prop = uriModel.getProperty(extendedProperty);
+	                                    NodeIterator nodeIterator = uriModel.listObjectsOfProperty(prop);
+	                                    while(nodeIterator.hasNext()) {
+	                                    	RDFNode rdfNode = nodeIterator.next();
+	                                    	if (rdfNode.isLiteral()) {
+	                                    		Literal literalNode = (Literal) rdfNode;
+	                                    		return literalNode.getString();
+	                                    	}
+	                                    }
 	                                }
 	
 	                            }
