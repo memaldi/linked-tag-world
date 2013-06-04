@@ -41,6 +41,14 @@ public class ClassItem {
 		return true;
 	}
 	
+	public PropertyItem getMainPropertyItem() {
+		for (PropertyItem item : this.propertyItems) {
+			if (item.getIsMain())
+				return item;
+		}
+		return null;
+	}
+	
 	@Override 
 	public String toString() {
 		StringBuilder result = new StringBuilder();
