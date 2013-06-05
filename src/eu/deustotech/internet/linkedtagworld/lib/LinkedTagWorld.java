@@ -11,14 +11,14 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import eu.deustotech.internet.linkedtagworld.layout.Layout;
 import eu.deustotech.internet.linkedtagworld.model.Widget;
+import eu.deustotech.internet.linkedtagworld.vocabulary.LTW;
+import eu.deustotech.internet.linkedtagworld.model.ClassItem;
+import eu.deustotech.internet.linkedtagworld.model.PropertyItem;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import com.hp.hpl.jena.rdf.model.Literal;
@@ -27,7 +27,10 @@ import com.hp.hpl.jena.rdf.model.ModelFactory;
 import com.hp.hpl.jena.rdf.model.NodeIterator;
 import com.hp.hpl.jena.rdf.model.Property;
 import com.hp.hpl.jena.rdf.model.RDFNode;
+import com.hp.hpl.jena.rdf.model.ResIterator;
 import com.hp.hpl.jena.rdf.model.Resource;
+import com.hp.hpl.jena.rdf.model.Statement;
+import com.hp.hpl.jena.rdf.model.StmtIterator;
 import com.hp.hpl.jena.vocabulary.RDF;
 
 import java.io.IOException;
@@ -36,13 +39,15 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.*;
+import java.util.Map.Entry;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 /**
  * Created by mikel on 21/05/13.
+ */
+/**
+ * Modified by jon on 04/06/13.
  */
 public class LinkedTagWorld {
 
@@ -50,75 +55,126 @@ public class LinkedTagWorld {
     private Activity activity;
     private InputStream inputStream;
 
-    private Map<String, String> uri2prefixMap = new HashMap<String, String>();
-    private Map<String, String> prefix2uriMap = new HashMap<String, String>();
+    private static final Map<String, String> uri2prefixMap = new HashMap<String, String>();
+    private static final Map<String, String> prefix2uriMap = new HashMap<String, String>();
 
     private String className;
 
     private List<String> prefixedTypeList;
     
     private Model model;
-
+    
+	private static final List<ClassItem> configuration = new ArrayList<ClassItem>();
 
     public LinkedTagWorld() {
-
+    	loadConfiguration();
     }
 
     public LinkedTagWorld(Context context, Activity activity, InputStream inputStream) {
         this.context = context;
         this.activity = activity;
         this.inputStream = inputStream;
+        loadConfiguration();
     }
 
     public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException {
-        DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder docBuilder;
-
-        docBuilder = docBuilderFactory.newDocumentBuilder();
-        Document doc = docBuilder.parse(this.inputStream);
-
-        fillPrefixesMaps(doc);
 
         this.model = setModel(URI);
 
         if (this.model.size() > 0) {
-        
         	this.prefixedTypeList = getPrefixedTypeList(this.model);
-	
-	        Node pageNode = getPageNode(doc, this.prefixedTypeList);
-	
-	        Map<String, Widget> propertyMap = getPropertyMap(pageNode);
-	
-	        setLayout(propertyMap, doc);
+        	ClassItem classItem = getClassItem(this.prefixedTypeList);
+	        Map<String, Widget> propertyMap = getPropertyMap(classItem);
+	        setLayout(propertyMap);
         }
 
     }
 
-    private void fillPrefixesMaps(Document doc) {
-        NodeList prefixesList = doc.getElementsByTagName("prefixes");
-        Node prefixes = prefixesList.item(0);
+	private void loadConfiguration() {
+		if (LinkedTagWorld.configuration.isEmpty()) {			
+			Model model = ModelFactory.createDefaultModel();
+				
+			model.read(this.inputStream, null, "TURTLE");
+			
+			fillPrefixesMaps(model.getNsPrefixMap());
+	
+			ResIterator iter =  model.listResourcesWithProperty(RDF.type, LTW.ClassItem);
+			
+			while (iter.hasNext()) {
+			    Resource res = iter.nextResource();
+			    
+			    ClassItem classItem = new ClassItem();
+			    
+			    StmtIterator stmts = res.listProperties(LTW.javaClass);
+			    while (stmts.hasNext()) {
+					classItem.setJavaClass(stmts.nextStatement().getObject().toString());
+				}
+			    stmts = res.listProperties(LTW.ontologyClass);
+			    while (stmts.hasNext()) {
+					classItem.setOntologyClass(stmts.nextStatement().getObject().toString());
+				}
+			    stmts = res.listProperties(LTW.identifier);
+			    while (stmts.hasNext()) {
+					classItem.setIdentifier(stmts.nextStatement().getObject().toString());
+				}
+			    
+			    List<PropertyItem> propertyItems = new ArrayList<PropertyItem>(); 
+		    
+			    StmtIterator propItems = res.listProperties(LTW.hasPropertyItem);
+			    
+			    while (propItems.hasNext()) {
+			    	Statement stmt = propItems.nextStatement();
+			    	Resource blankNodeUri = (Resource) stmt.getObject();
+			    	
+			    	PropertyItem propertyItem = new PropertyItem();
+			    	
+				    stmts = blankNodeUri.listProperties(LTW.identifier);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setIdentifier(stmts.nextStatement().getObject().toString());
+					}
+				    stmts = blankNodeUri.listProperties(LTW.ontologyProperty);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setOntologyProperty(stmts.nextStatement().getObject().toString());
+					}
+				    stmts = blankNodeUri.listProperties(LTW.isLinkable);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setIsLinkable(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
+					}
+				    stmts = blankNodeUri.listProperties(LTW.isClickable);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setIsClickable(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
+					}
+				    stmts = blankNodeUri.listProperties(LTW.isMain);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setIsMain(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
+					}
+				    stmts = blankNodeUri.listProperties(LTW.datatype);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setDatatype(stmts.nextStatement().getObject().toString());
+				    }
+				    stmts = blankNodeUri.listProperties(LTW.language);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setLanguage(stmts.nextStatement().getObject().toString());
+				    }
+				    
+				    if (propertyItem.validate())
+				    	propertyItems.add(propertyItem);
+			    }
+			    
+			    classItem.setPropertyItems(propertyItems);		    
+			    if (classItem.validate())
+			    	LinkedTagWorld.configuration.add(classItem);
+			}
+		}
+	}    
+    
+    private void fillPrefixesMaps(Map<String, String> configPrefixes) {
+    	LinkedTagWorld.prefix2uriMap.put("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    	LinkedTagWorld.uri2prefixMap.put("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf");
 
-        this.prefix2uriMap.put("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-        this.uri2prefixMap.put("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf");
-
-        NodeList prefixesChildren = prefixes.getChildNodes();
-
-        for(int i = 0; i < prefixesChildren.getLength(); i++) {
-            Node prefixItem = prefixesChildren.item(i);
-            if (prefixItem.getNodeName().equals("prefixItem")) {
-                NodeList prefixChildren = prefixItem.getChildNodes();
-                String prefix = "";
-                String uri = "";
-                for(int j = 0; j < prefixChildren.getLength(); j++) {
-                    if (prefixChildren.item(j).getNodeName().equals("prefix")) {
-                        prefix = prefixChildren.item(j).getFirstChild().getNodeValue();
-                    } else if (prefixChildren.item(j).getNodeName().equals("uri")) {
-                        uri = prefixChildren.item(j).getFirstChild().getNodeValue();
-                    }
-                }
-                this.prefix2uriMap.put(prefix, uri);
-                this.uri2prefixMap.put(uri, prefix);
-            }
+        for(Entry<String, String> entry : configPrefixes.entrySet()) {
+        	LinkedTagWorld.prefix2uriMap.put(entry.getKey(), entry.getValue());
+        	LinkedTagWorld.uri2prefixMap.put(entry.getValue(), entry.getKey());
         }
     }
 
@@ -156,12 +212,12 @@ public class LinkedTagWorld {
 
         for (String type : typeList) {
 
-            prefixedTypeList.add(String.format("%s:%s", this.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
+            prefixedTypeList.add(String.format("%s:%s", LinkedTagWorld.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
         }
         
         return prefixedTypeList;
     }
-
+    
     private String getPrefix(String URI) {
         if (URI.contains("#")) {
             return URI.split("#")[0] + "#";
@@ -175,70 +231,31 @@ public class LinkedTagWorld {
         }
     }
 
-    private Node getPageNode(Document doc, List<String> prefixedTypeList) {
-        NodeList pageItemList = doc.getElementsByTagName("pageItem");
-
-        Node pageNode = null;
-        for (int i = 0; i < pageItemList.getLength(); i++) {
-            Node node = pageItemList.item(i);
-            if (node.getNodeName().equals("pageItem")) {
-                Element element = (Element) node;
-                String classAttribute = element.getAttribute("type");
-                if (prefixedTypeList.contains(classAttribute)) {
-                    pageNode = node;
-                    this.className = element.getAttribute("class");
-                }
-            }
-        }
-        return pageNode;
+    private ClassItem getClassItem(List<String> prefixedTypeList) {
+    	for (String type : prefixedTypeList) {
+    		String extendedClass = LinkedTagWorld.prefix2uriMap.get(type.split(":")[0]) + type.split(":")[1];
+    		for (ClassItem item : LinkedTagWorld.configuration) {
+    			if (extendedClass.equals(item.getOntologyClass())) {
+    				this.className = item.getJavaClass();
+    				return item;
+    			}
+    		}
+    	}
+    	return null;
     }
 
-    private Map<String, Widget> getPropertyMap(Node pageNode) {
+    private Map<String, Widget> getPropertyMap(ClassItem classItem) {
         Map<String, Widget> propertyMap = new HashMap<String, Widget>();
-
-        NodeList pageNodeChildren = pageNode.getChildNodes();
-        for (int i = 0; i < pageNodeChildren.getLength(); i++) {
-            Node node = pageNodeChildren.item(i);
-            if (node.getNodeName().equals("items")) {
-                NodeList childNodes = node.getChildNodes();
-                for (int j = 0; j < childNodes.getLength(); j++) {
-                    Node itemNode = childNodes.item(j);
-                    NodeList itemNodeChildren = itemNode.getChildNodes();
-                    if (itemNode.getNodeName().equals("item")) {
-
-                        String property = "";
-                        String id = itemNode.getAttributes().getNamedItem("id").getNodeValue();
-                        boolean linkable = false;
-                        if (itemNode.getAttributes().getNamedItem("linkable") != null) {
-                            linkable = Boolean.valueOf(itemNode.getAttributes().getNamedItem("linkable").getNodeValue());
-                        }
-
-                        boolean main = false;
-                        if (itemNode.getAttributes().getNamedItem("main") != null) {
-                            main = Boolean.valueOf(itemNode.getAttributes().getNamedItem("main").getNodeValue());
-                        }
-
-                        Widget widget = new Widget(id, linkable, main);
-                        for (int k = 0; k < itemNodeChildren.getLength(); k++) {
-                            Node element = itemNodeChildren.item(k);
-                            if (element.getNodeName().equals("property")) {
-                                property = element.getFirstChild().getNodeValue();
-                            }
-                            if (!"".equals(property) && !"".equals(id)) {
-                                propertyMap.put(property, widget);
-                            }
-
-                        }
-                    }
-
-                }
-            }
+        
+        for (PropertyItem item : classItem.getPropertyItems()) {
+        	propertyMap.put(item.getOntologyProperty(), new Widget(item.getIdentifier(), item.getIsClickable(), item.getIsMain()));
         }
+        
         return propertyMap;
     }
 
-    private void setLayout(Map<String, Widget> propertyMap, Document doc) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {
-        Class<Layout> layoutClass = (Class<Layout>) Class.forName(this.className);
+    private void setLayout(Map<String, Widget> propertyMap) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {	
+    	Class<Layout> layoutClass = (Class<Layout>) Class.forName(this.className);
         Layout layout = layoutClass.newInstance();
 
         this.activity.setContentView(layout.getLayout());
@@ -246,9 +263,7 @@ public class LinkedTagWorld {
         Map<String, Integer> widgetMap = layout.getWidgets();
 
         for (String property : propertyMap.keySet()) {
-        	String extendedProperty = this.prefix2uriMap.get(property.split(":")[0]) + property.split(":")[1];
-        	
-        	Property prop = this.model.getProperty(extendedProperty);
+        	Property prop = this.model.getProperty(property);
         	NodeIterator nodeIterator = this.model.listObjectsOfProperty(prop);
         	
         	while(nodeIterator.hasNext()) {
@@ -265,7 +280,7 @@ public class LinkedTagWorld {
         		}
         		int viewID = widgetMap.get(id);
         		Object view = this.activity.findViewById(viewID);
-        		setView(object, view, null, widget, doc);
+        		setView(object, view, null, widget);
         	}
         }
 
@@ -284,7 +299,7 @@ public class LinkedTagWorld {
         }
     }
 
-    private void setView(final String object, Object view, Object originalView, Widget widget, Document doc) throws IOException {
+    private void setView(final String object, Object view, Object originalView, Widget widget) throws IOException {
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
             String template = "";
@@ -295,9 +310,9 @@ public class LinkedTagWorld {
                 template = originalTextView.getText().toString();
             }
             String text = "";
-            if (widget.isLinkable()) {
+            if (widget.isClickable()) {
 
-                String strObject = getMain(object, doc);
+                String strObject = getMain(object);
 
                 try {
                     //Statement statement = main.get(0);
@@ -350,7 +365,7 @@ public class LinkedTagWorld {
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }
-            setView(object, childCopy, child, widget, doc);
+            setView(object, childCopy, child, widget);
             childCopy.setVisibility(View.VISIBLE);
             childCopy.setLayoutParams(new ViewGroup.LayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)));
             layoutView.addView(childCopy);
@@ -368,69 +383,30 @@ public class LinkedTagWorld {
         }
     }
 
-    private String getMain(String URI, Document doc) throws IOException {
+    private String getMain(String URI) throws IOException {
         //Collection<Statement> statementCollection = setModel(URI);
     	Model uriModel = setModel(URI);
         if (uriModel.size() > 0) {
 	        //Map<String, List<Statement>> predicateMap = getPredicateMap(statementCollection);
         	List<String> prefixedTypeList = getPrefixedTypeList(uriModel);
-	        Node pageNode = getPageNode(doc, prefixedTypeList);
+	        
+        	ClassItem classItem = getClassItem(prefixedTypeList);
 	        //Map<String, Widget> propertyMap = getPropertyMap(pageNode);
 	        //Map<String, Widget> propertyMap = new HashMap<String, Widget>();
-	
-	        NodeList pageNodeChildren = pageNode.getChildNodes();
-	        for (int i = 0; i < pageNodeChildren.getLength(); i++) {
-	            Node node = pageNodeChildren.item(i);
-	            if (node.getNodeName().equals("items")) {
-	                NodeList childNodes = node.getChildNodes();
-	                for (int j = 0; j < childNodes.getLength(); j++) {
-	                    Node itemNode = childNodes.item(j);
-	                    NodeList itemNodeChildren = itemNode.getChildNodes();
-	                    if (itemNode.getNodeName().equals("item")) {
-	
-	                        String property = "";
-	                        String id = itemNode.getAttributes().getNamedItem("id").getNodeValue();
-	                        boolean linkable = false;
-	                        if (itemNode.getAttributes().getNamedItem("linkable") != null) {
-	                            linkable = Boolean.valueOf(itemNode.getAttributes().getNamedItem("linkable").getNodeValue());
-	                        }
-	
-	                        boolean main = false;
-	                        if (itemNode.getAttributes().getNamedItem("main") != null) {
-	                            main = Boolean.valueOf(itemNode.getAttributes().getNamedItem("main").getNodeValue());
-	                        }
-	
-	                        Widget widget = new Widget(id, linkable, main);
-	                        for (int k = 0; k < itemNodeChildren.getLength(); k++) {
-	                            Node element = itemNodeChildren.item(k);
-	                            if (element.getNodeName().equals("property")) {
-	                                property = element.getFirstChild().getNodeValue();
-	                            }
-	                            if (!"".equals(property) && !"".equals(id)) {
-	                                //propertyMap.put(property, widget);
-	                                if (widget.isMain()) {
-	                                    String extendedProperty = prefix2uriMap.get(property.split(":")[0]) + property.split(":")[1];
-	                                    //return predicateMap.get(extendedProperty);
-	                                    
-	                                    Property prop = uriModel.getProperty(extendedProperty);
-	                                    NodeIterator nodeIterator = uriModel.listObjectsOfProperty(prop);
-	                                    while(nodeIterator.hasNext()) {
-	                                    	RDFNode rdfNode = nodeIterator.next();
-	                                    	if (rdfNode.isLiteral()) {
-	                                    		Literal literalNode = (Literal) rdfNode;
-	                                    		return literalNode.getString();
-	                                    	}
-	                                    }
-	                                }
-	
-	                            }
-	
-	                        }
-	                    }
-	
-	                }
-	            }
-	        }
+        	PropertyItem propItem = classItem.getMainPropertyItem();
+        	
+            if (propItem != null) {
+            	Property prop = uriModel.getProperty(propItem.getOntologyProperty());
+                NodeIterator nodeIterator = uriModel.listObjectsOfProperty(prop);
+                
+                while(nodeIterator.hasNext()) {
+                	RDFNode rdfNode = nodeIterator.next();
+                	if (rdfNode.isLiteral()) {
+                		Literal literalNode = (Literal) rdfNode;
+                		return literalNode.getString();
+                	}
+                }
+            }
         }
         return null;
     }
