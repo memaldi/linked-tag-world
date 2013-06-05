@@ -55,8 +55,8 @@ public class LinkedTagWorld {
     private Activity activity;
     private InputStream inputStream;
 
-    private Map<String, String> uri2prefixMap = new HashMap<String, String>();
-    private Map<String, String> prefix2uriMap = new HashMap<String, String>();
+    private static final Map<String, String> uri2prefixMap = new HashMap<String, String>();
+    private static final Map<String, String> prefix2uriMap = new HashMap<String, String>();
 
     private String className;
 
@@ -64,7 +64,7 @@ public class LinkedTagWorld {
     
     private Model model;
     
-	private List<ClassItem> classItems =  null;
+	private static final List<ClassItem> configuration = new ArrayList<ClassItem>();
 
     public LinkedTagWorld() {
     	loadConfiguration();
@@ -91,9 +91,7 @@ public class LinkedTagWorld {
     }
 
 	private void loadConfiguration() {
-		if (this.classItems == null) {
-			this.classItems = new ArrayList<ClassItem>();
-			
+		if (LinkedTagWorld.configuration.isEmpty()) {			
 			Model model = ModelFactory.createDefaultModel();
 				
 			model.read(this.inputStream, null, "TURTLE");
@@ -161,18 +159,18 @@ public class LinkedTagWorld {
 			    
 			    classItem.setPropertyItems(propertyItems);		    
 			    if (classItem.validate())
-			    	this.classItems.add(classItem);
+			    	LinkedTagWorld.configuration.add(classItem);
 			}
 		}
 	}    
     
     private void fillPrefixesMaps(Map<String, String> configPrefixes) {
-        this.prefix2uriMap.put("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-        this.uri2prefixMap.put("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf");
+    	LinkedTagWorld.prefix2uriMap.put("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    	LinkedTagWorld.uri2prefixMap.put("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "rdf");
 
         for(Entry<String, String> entry : configPrefixes.entrySet()) {
-            this.prefix2uriMap.put(entry.getKey(), entry.getValue());
-            this.uri2prefixMap.put(entry.getValue(), entry.getKey());
+        	LinkedTagWorld.prefix2uriMap.put(entry.getKey(), entry.getValue());
+        	LinkedTagWorld.uri2prefixMap.put(entry.getValue(), entry.getKey());
         }
     }
 
@@ -210,7 +208,7 @@ public class LinkedTagWorld {
 
         for (String type : typeList) {
 
-            prefixedTypeList.add(String.format("%s:%s", this.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
+            prefixedTypeList.add(String.format("%s:%s", LinkedTagWorld.uri2prefixMap.get(getPrefix(type)), type.split(getPrefix(type))[1]));
         }
         
         return prefixedTypeList;
@@ -231,8 +229,8 @@ public class LinkedTagWorld {
 
     private ClassItem getClassItem(List<String> prefixedTypeList) {
     	for (String type : prefixedTypeList) {
-    		String extendedClass = prefix2uriMap.get(type.split(":")[0]) + type.split(":")[1];
-    		for (ClassItem item : this.classItems) {
+    		String extendedClass = LinkedTagWorld.prefix2uriMap.get(type.split(":")[0]) + type.split(":")[1];
+    		for (ClassItem item : LinkedTagWorld.configuration) {
     			if (extendedClass.equals(item.getOntologyClass())) {
     				this.className = item.getJavaClass();
     				return item;
