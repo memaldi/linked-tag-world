@@ -140,6 +140,10 @@ public class LinkedTagWorld {
 				    while (stmts.hasNext()) {
 				    	propertyItem.setIsLinkable(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
 					}
+				    stmts = blankNodeUri.listProperties(LTW.isClickable);
+				    while (stmts.hasNext()) {
+				    	propertyItem.setIsClickable(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
+					}
 				    stmts = blankNodeUri.listProperties(LTW.isMain);
 				    while (stmts.hasNext()) {
 				    	propertyItem.setIsMain(Boolean.valueOf(stmts.nextStatement().getObject().toString()));
@@ -244,7 +248,7 @@ public class LinkedTagWorld {
         Map<String, Widget> propertyMap = new HashMap<String, Widget>();
         
         for (PropertyItem item : classItem.getPropertyItems()) {
-        	propertyMap.put(item.getOntologyProperty(), new Widget(item.getIdentifier(), item.getIsLinkable(), item.getIsMain()));
+        	propertyMap.put(item.getOntologyProperty(), new Widget(item.getIdentifier(), item.getIsClickable(), item.getIsMain()));
         }
         
         return propertyMap;
@@ -306,7 +310,7 @@ public class LinkedTagWorld {
                 template = originalTextView.getText().toString();
             }
             String text = "";
-            if (widget.isLinkable()) {
+            if (widget.isClickable()) {
 
                 String strObject = getMain(object);
 

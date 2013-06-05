@@ -3,6 +3,7 @@ package eu.deustotech.internet.linkedtagworld.model;
 public class PropertyItem {
 	private String identifier = "";
 	private Boolean isLinkable = false;
+	private Boolean isClickable = false;
 	private Boolean isMain = false;
 	private String ontologyProperty = "";
 	private String datatype = "";
@@ -26,6 +27,9 @@ public class PropertyItem {
 	public String getLanguage() {
 		return language;
 	}
+	public Boolean getIsClickable() {
+		return isClickable;
+	}
 	public void setIdentifier(String identifier) {
 		this.identifier = identifier;
 	}
@@ -44,7 +48,9 @@ public class PropertyItem {
 	public void setLanguage(String language) {
 		this.language = language;
 	}
-	
+	public void setIsClickable(Boolean isClicable) {
+		this.isClickable = isClicable;
+	}
 	public boolean validate() {
 		if (this.identifier == "" || this.ontologyProperty == "") {
 			return false;
@@ -61,6 +67,7 @@ public class PropertyItem {
 	    result.append("		  Identifier: " + identifier + NEW_LINE);
 	    result.append(" 	  Ontology Property: " + ontologyProperty + NEW_LINE);
 	    result.append(" 	  Linkable: " + isLinkable + NEW_LINE);
+	    result.append(" 	  Clickable: " + isClickable + NEW_LINE);
 	    result.append(" 	  Main: " + isMain + NEW_LINE);
 	    if (datatype != "")
 	    	result.append(" 	  Datatype: " + datatype + NEW_LINE);
