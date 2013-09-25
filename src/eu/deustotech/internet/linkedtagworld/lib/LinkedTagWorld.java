@@ -2,8 +2,8 @@ package eu.deustotech.internet.linkedtagworld.lib;
 
 import android.app.Activity;
 import android.content.Context;
-
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.view.View;
 import android.view.ViewGroup;
@@ -40,6 +40,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -77,7 +78,7 @@ public class LinkedTagWorld {
         loadConfiguration();
     }
 
-    public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException {
+    public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException, InterruptedException, ExecutionException {
 
         this.model = setModel(URI);
 
@@ -178,8 +179,11 @@ public class LinkedTagWorld {
         }
     }
 
-    private Model setModel(String URI) throws IOException {
+    private Model setModel(String URI) throws IOException, InterruptedException, ExecutionException {
  	
+    	return new RetreiveHTTPData().execute(URI).get();
+    	
+    	/*
         HttpClient client = new DefaultHttpClient();
         HttpGet request = new HttpGet(URI);
         request.addHeader("Accept", "application/rdf+xml");
@@ -192,6 +196,7 @@ public class LinkedTagWorld {
         model.read(inputStream, null);
         
         return model;
+        */
         
     }
     
@@ -254,7 +259,7 @@ public class LinkedTagWorld {
         return propertyMap;
     }
 
-    private void setLayout(Map<String, Widget> propertyMap) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {	
+    private void setLayout(Map<String, Widget> propertyMap) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, InterruptedException, ExecutionException {	
     	Class<Layout> layoutClass = (Class<Layout>) Class.forName(this.className);
         Layout layout = layoutClass.newInstance();
 
@@ -299,7 +304,7 @@ public class LinkedTagWorld {
         }
     }
 
-    private void setView(final String object, Object view, Object originalView, Widget widget) throws IOException {
+    private void setView(final String object, Object view, Object originalView, Widget widget) throws IOException, InterruptedException, ExecutionException {
         if (view instanceof TextView) {
             TextView textView = (TextView) view;
             String template = "";
@@ -313,25 +318,26 @@ public class LinkedTagWorld {
             if (widget.isClickable()) {
 
                 String strObject = getMain(object);
-
-                try {
-                    //Statement statement = main.get(0);
-                    text = String.format(template, strObject);
-
-                    textView.setOnClickListener( new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            Intent intent = new Intent(context.getApplicationContext(), activity.getClass());
-                            intent.putExtra("getBoolean", false);
-                            intent.putExtra("URI", object);
-
-                            activity.startActivity(intent);
-                        }
-                    });
-                } catch (NullPointerException e) {
-                    text = String.format(template, object);
+                if (strObject != null) {
+	                try {
+	                    //Statement statement = main.get(0);
+	                    text = String.format(template, strObject);
+	
+	                    textView.setOnClickListener( new View.OnClickListener() {
+	                        @Override
+	                        public void onClick(View view) {
+	                            Intent intent = new Intent(context.getApplicationContext(), activity.getClass());
+	                            intent.putExtra("getBoolean", false);
+	                            intent.putExtra("URI", object);
+	
+	                            activity.startActivity(intent);
+	                        }
+	                    });
+	                } catch (NullPointerException e) {
+	                    text = String.format(template, object);
+	                }
+                
                 }
-
 
             } else {
                 text = String.format(template, object);
@@ -373,17 +379,14 @@ public class LinkedTagWorld {
 
         } else if (view instanceof ImageView) {
             ImageView imageView = (ImageView) view;
-            try {
-                imageView.setImageBitmap(BitmapFactory.decodeStream(new URL(object).openConnection().getInputStream()));
-            } catch (IOException e) {
-            	System.out.println("Error recovering image!");
-                //e.printStackTrace();
-            }
+            Bitmap bm = new RetrieveHTTPBitmap().execute(object).get();
+			imageView.setImageBitmap(bm);
+			//imageView.setImageBitmap(BitmapFactory.decodeStream(new URL(object).openConnection().getInputStream()));
 
         }
     }
 
-    private String getMain(String URI) throws IOException {
+    private String getMain(String URI) throws IOException, InterruptedException, ExecutionException {
         //Collection<Statement> statementCollection = setModel(URI);
     	Model uriModel = setModel(URI);
         if (uriModel.size() > 0) {
