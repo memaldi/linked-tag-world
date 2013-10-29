@@ -66,6 +66,8 @@ public class LinkedTagWorld {
     private Model model;
     
 	private static final List<ClassItem> configuration = new ArrayList<ClassItem>();
+	
+	private String lang;
 
     public LinkedTagWorld() {
     	loadConfiguration();
@@ -78,13 +80,15 @@ public class LinkedTagWorld {
         loadConfiguration();
     }
 
-    public void renderData(String URI) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException, InterruptedException, ExecutionException {
+    public void renderData(String URI, String lang) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException, InterruptedException, ExecutionException {
 
         this.model = setModel(URI);
-
+        this.lang = lang;
+        
         if (this.model.size() > 0) {
         	this.prefixedTypeList = getPrefixedTypeList(this.model);
         	ClassItem classItem = getClassItem(this.prefixedTypeList);
+        	this.activity.setTitle(getMain(URI));
 	        Map<String, Widget> propertyMap = getPropertyMap(classItem);
 	        setLayout(propertyMap);
         }
@@ -278,6 +282,11 @@ public class LinkedTagWorld {
         		String object = "";
         		if (node.isLiteral()) {
         			Literal literalNode = (Literal) node;
+        			if (!literalNode.getLanguage().equals("")) {
+        				if (!literalNode.getLanguage().equals(this.lang)) {
+        					continue;
+        				}
+        			}
         			object = literalNode.getString();
         		} else if (node.isResource()) {
         			Resource resNode = (Resource) node;
