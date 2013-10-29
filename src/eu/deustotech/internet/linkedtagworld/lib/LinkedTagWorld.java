@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.text.SpannableString;
+import android.text.style.UnderlineSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -325,7 +327,7 @@ public class LinkedTagWorld {
             }
             String text = "";
             if (widget.isClickable()) {
-
+            	
                 String strObject = getMain(object);
                 if (strObject != null) {
 	                try {
@@ -347,12 +349,16 @@ public class LinkedTagWorld {
 	                }
                 
                 }
+                
+                SpannableString content = new SpannableString(text);
+                content.setSpan(new UnderlineSpan(), 0, text.length(), 0);
+                textView.setText(content);
 
             } else {
                 text = String.format(template, object);
+                textView.setText(text);
             }
-
-            textView.setText(text);
+            
 
 
 
