@@ -1,0 +1,53 @@
+html, body {
+  height: 100%;
+}
+
+body {
+    padding-top: 20px;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.jumbotron {
+    background: none;
+}
+
+/* Wrapper for page content to push down footer */
+#wrap {
+    min-height: 100%;
+}
+
+#main {
+  overflow: auto;
+  padding-bottom: 150px; /* this needs to be bigger than footer height*/
+}
+
+.footer {
+    padding-left: 15px;
+    padding-right: 15px;
+    margin-right: auto;
+    margin-left: auto;
+    position: relative;
+    margin-top: -150px; /* negative value of footer height */
+    height: 150px;
+    clear: both;
+    border-top: 2px solid #e5e5e5;
+}
+
+@media (min-width: 768px) {
+  .footer {
+    width: 750px;
+  }
+}
+@media (min-width: 992px) {
+  .footer {
+    width: 970px;
+  }
+}
+@media (min-width: 1200px) {
+  .footer {
+    width: 1170px;
+  }
+}
