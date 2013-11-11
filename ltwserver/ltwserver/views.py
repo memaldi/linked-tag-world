@@ -9,15 +9,10 @@
     :copyright: (c) 2013 by Jon Lazaro.
 """
 
-from flask import Flask, request, redirect, url_for, render_template
-
-import os
-
-# Flask app initialization
-app = Flask(__name__)
+from ltwserver import app
+from flask import request, redirect, url_for, render_template
 
 
-# Controllers
 @app.route("/")
 def index():
     return redirect(url_for('configure'))
@@ -40,9 +35,3 @@ def nonrdfsource():
         return render_template('nonrdf_step1.html')
     else:
         return render_template('nonrdf_step1.html')
-
-
-# Server launch
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
