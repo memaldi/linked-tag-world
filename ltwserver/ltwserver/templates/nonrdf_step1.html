@@ -10,13 +10,14 @@
       <h3 class="panel-title">Term list</h3>
     </div>
     <div class="panel-body">
-      <form class="form-horizontal" id="listform" action="{{ url_for('nonrdfsource') }}" method="POST">
+      <form class="form-horizontal" action="{{ url_for('nonrdfsource') }}" method="POST">
+        {{ form.csrf_token }}
         <fieldset>
+          {% if form.errors %}
+            {{ macros.with_errors(form) }}
+          {% endif %}
           <div class="form-group">
-            <label for="inputsparql" class="col-lg-2 control-label">Terms:</label>
-            <div class="col-lg-10">
-              <textarea class="form-control" rows="15" id="textArea"></textarea>
-            </div>
+            {{ macros.field2_10(form.term_list, "inputtermlist", rows=15) }}
           </div>
           <div class="form-group">
             <div class="col-lg-10 col-lg-offset-2">

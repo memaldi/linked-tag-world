@@ -1,0 +1,19 @@
+{% macro with_errors(form) %}
+  <div class="alert alert-dismissable alert-danger fade in">
+    <button type="button" class="close" data-dismiss="alert">×</button>
+    <ul>
+    {% for field_name, field_errors in form.errors|dictsort if field_errors %}
+      {% for error in field_errors %}
+        <li>{{ form[field_name].label }}: {{ error }}</li>
+      {% endfor %}
+    {% endfor %}
+    </ul>
+  </div>
+{% endmacro %}
+
+{% macro field2_10(field, field_id) %}
+  <label for={{ field_id }} class="col-lg-2 control-label {% if field.errors %}text-danger{% endif %}">{{ field.label }}{% if field.flags.required %}*{% endif %}</label>
+  <div class="col-lg-10 {% if field.errors %}has-error{% endif %}">
+    {{ field(id=field_id, class="form-control", **kwargs) }}
+  </div>
+{% endmacro %}
