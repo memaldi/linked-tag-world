@@ -51,3 +51,8 @@ body {
     width: 1170px;
   }
 }
+
+.navbar {
+  margin-left: -30px;
+  margin-right: -30px;
+}
