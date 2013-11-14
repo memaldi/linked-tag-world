@@ -1,7 +1,5 @@
 {% extends "base.html" %}
 
-{% block body %}onload="prettyPrint()"{% endblock %}
-
 {% block styles %}
 <link href="{{ url_for('static', filename='css/codemirror.css') }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/codemirror-fullscreen.css') }}" rel="stylesheet">
@@ -33,7 +31,6 @@
               </div>
             </fieldset>
           </form>
-          <!--pre class="prettyprint">{{ config_file }}</pre-->
         </div>
         <div class="well well-sm col-md-3" id="progress-msg">
           <button type="button" class="btn btn-primary col-md-6">Download</button>
