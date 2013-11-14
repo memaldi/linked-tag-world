@@ -1,9 +1,9 @@
 from flask_wtf import Form
 from wtforms.fields.html5 import URLField
-from wtforms.fields import TextAreaField, TextField, SelectField
+from wtforms.fields import TextAreaField, TextField, SelectField, HiddenField
 from wtforms.validators import DataRequired, url, ValidationError
 from flask_wtf.file import FileField
-from rdflib import ConjunctiveGraph
+from rdflib import ConjunctiveGraph, Graph
 
 
 SUPPORTED_RDF_SYNTAXES = {
@@ -28,6 +28,13 @@ def validate_sparql_endpoint(form, field):
     except:
         raise ValidationError('This is not a valid SPARQL endpoint.')
 
+def validate_rdf_data(form, field):
+    try:
+        g = Graph()
+        g.parse(data=field.data, format='turtle')
+    except:
+        raise ValidationError('Not well-formed RDF file.')
+
 class RDFDataForm(Form):
     rdf_file = FileField('RDF file', validators=[DataRequired()])
     format = SelectField(u'Format', choices=[ (key, value) for key, value in SUPPORTED_RDF_SYNTAXES.items() ])
@@ -38,3 +45,9 @@ class SparqlForm(Form):
 
 class TermListForm(Form):
     term_list = TextAreaField('Terms', validators=[DataRequired()])
+
+class ConfigHiddenForm(Form):
+    config_file = HiddenField(validators=[DataRequired()]);
+
+class ConfigEditForm(Form):
+    config_file = TextAreaField(validators=[DataRequired(), validate_rdf_data]);

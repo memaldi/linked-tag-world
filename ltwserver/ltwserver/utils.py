@@ -54,12 +54,16 @@ def generate_config_file(data_graph, graph=None):
     )
 
     class_prop_items = {}
+    i = 0
     for class_item, prop_item, clickable_prop in data_q_res:
+        i += 1
         if class_item in class_prop_items:
             class_prop_items[class_item].append((prop_item, clickable_prop))
         else:
             class_prop_items[class_item] = [(prop_item, clickable_prop)]
+    print i
 
+    j = 0
     for class_item, prop_clicks in class_prop_items.items():
         class_name = re.split('/|#', class_item)[-1]
         class_uri = URIRef('#%sMap' % class_name)
@@ -68,6 +72,7 @@ def generate_config_file(data_graph, graph=None):
 
         is_main = False
         for prop_click in prop_clicks:
+            j += 1
             prop_item, clickable_prop = prop_click
 
             prop_uri = BNode()
@@ -86,6 +91,7 @@ def generate_config_file(data_graph, graph=None):
                 is_main = True
                 config_file.add( (prop_uri, LTW.isMain, Literal(is_main)) )
 
+    print j
     return config_file
 
 def generate_config_file_2(data_graph, graph=None):
@@ -237,19 +243,19 @@ def get_linkable_literals(data_graph, linkable_props, default_lang='en', graph=N
 
 if __name__ == "__main__":
     g = ConjunctiveGraph('SPARQLStore')
-    #g.open('http://helheim.deusto.es/hedatuz/sparql')
+    g.open('http://helheim.deusto.es/hedatuz/sparql')
     #g.open('http://data.semanticweb.org/sparql')
-    g.open('http://helheim.deusto.es/sparql')
+    #g.open('http://helheim.deusto.es/sparql')
 
     # Generate LTW configuration file for a given dataset
-    config = generate_config_file(data_graph=g, graph='http://turismo-zaragoza')
+    config = generate_config_file(data_graph=g)#, graph='http://turismo-zaragoza')
 
     # Add some fake linkable properties to LTW configuration file
     #create_linkable_property(config_graph=config, class_ont='http://xmlns.com/foaf/0.1/Person', prop_ont='http://xmlns.com/foaf/0.1/name')
-    create_linkable_property(config_graph=config, class_ont='http://idi.fundacionctic.org/cruzar/turismo#Edificio-historico', prop_ont='http://www.w3.org/2004/02/skos/core#definition')
+    #create_linkable_property(config_graph=config, class_ont='http://idi.fundacionctic.org/cruzar/turismo#Edificio-historico', prop_ont='http://www.w3.org/2004/02/skos/core#definition')
 
     # Print the serialization of the resulting LTW configuration file
-    print config.serialize(format='turtle')
+    #print config.serialize(format='turtle')
 
     # Crawl the LTW configuration file searching for linkable properties
     linkable_props = find_linkable_properties(config_graph=config)

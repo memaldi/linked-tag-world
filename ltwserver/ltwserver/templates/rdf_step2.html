@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block body %}onload="prettyPrint()"{% endblock %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/codemirror.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/codemirror-fullscreen.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block header %}Configure LTW{% endblock %}
+
+{% block title %}Step 2 <small>Edit or download your LTW configuration file</small>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">LTW configuration file</h3>
+      </div>
+      <div class="panel-body">
+        <div class="col-md-9" id="code">
+          <form class="form-horizontal" action="{{ url_for('rdfsource_step3') }}" method="POST" id="configform">
+            {{ form.csrf_token }}
+            <fieldset>
+              {% if form.errors %}
+                {{ macros.with_errors(form) }}
+              {% endif %}
+              <div class="form-group">
+                <div class="{% if form.config_file.errors %}has-error{% endif %}">
+                  {{ form.config_file(class="form-control", rows=30) }}
+                </div>
+              </div>
+            </fieldset>
+          </form>
+          <!--pre class="prettyprint">{{ config_file }}</pre-->
+        </div>
+        <div class="well well-sm col-md-3" id="progress-msg">
+          <button type="button" class="btn btn-primary col-md-6">Download</button>
+          <button type="button" class="btn btn-primary col-md-6" id="nextbutton">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/codemirror-compressed.js') }}"></script>
+<script type="text/javascript">
+  var textvalue = $('#{{ form.config_file.id }}').val();
+
+  var myCodeMirror = CodeMirror.fromTextArea(document.getElementById("{{ form.config_file.id }}"), {
+    value: textvalue,
+    mode:  "turtle",
+    lineWrapping: true,
+    //readOnly: 'nocursor',
+  });
+  myCodeMirror.setSize($("#{{ form.config_file.id }}").width(), $("#{{ form.config_file.id }}").height());
+
+  $( "#nextbutton" ).click(function() {
+    myCodeMirror.save()
+    $( "#configform" ).submit();
+  });
+</script>
+{% endblock %}

@@ -15,11 +15,11 @@
     <!-- Bootstrap core CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap-spacelab.min.css') }}" rel="stylesheet">
 
-    <!-- Custom styles for this template -->
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
-
     {% block styles %}
     {% endblock %}
+
+    <!-- Custom styles for this template -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 
     <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!--[if lt IE 9]>
@@ -28,7 +28,7 @@
     <![endif]-->
   </head>
 
-  <body>
+  <body {% block body %}{% endblock %}>
     <div id="wrap">
       <div id="main">
         <div class="container">

@@ -22,6 +22,10 @@
     </div>
   </div>
 </div>
+<form method="POST" action="{{ url_for('rdfsource_step2') }}" id="configform">
+  {{ form.csrf_token }}
+  {{ form.config_file }}
+</form>
 {% endblock %}
 
 {% block scripts %}
@@ -32,23 +36,28 @@
     var interval = setInterval(function() { 
       $.getJSON('/_get_task_status', {task_id: "{{ task_id }}"}, 
         function(data) {
-          if (parseInt(data.progress_percent) > percent || data == 'SUCCESS') {
-            var txt = $("#progress-msg p:last-child").text();
-            $("#progress-msg p:last-child").text(txt + ' OK!');
-            $("#progress-msg p:last-child").addClass("text-success");
-            if (data == 'SUCCESS') {
+          if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
+            if (data.result.progress_msg || data.status == 'SUCCESS') {
+              var txt = $("#progress-msg p:last-child").text();
+              $("#progress-msg p:last-child").text(txt + ' OK!');
+              $("#progress-msg p:last-child").addClass("text-success");
+            }
+            if (data.status == 'SUCCESS') {
               clearInterval(interval);
               percent = 100;
               $("#progress-msg").append( "<p class=\"text-success\">Done!</p>" );
+              $("#{{ form.config_file.id }}").val(data.result);
+              $("#configform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");
             }
             else {
-              percent = parseInt(data.progress_percent);
-              $("#progress-msg").append( "<p>" + data.progress_msg + "</p>" );
+              percent = parseInt(data.result.progress_percent);
+              if (data.result.progress_msg)
+                $("#progress-msg").append( "<p>" + data.result.progress_msg + "</p>" );
             }
             $(".progress-bar").css({'width': percent + '%'});
           }
       });
-    }, 1000)
+    }, 500)
   });
  </script>
 {% endblock %}
