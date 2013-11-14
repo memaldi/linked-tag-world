@@ -10,12 +10,14 @@
 """
 
 from ltwserver import app, celery
-from flask import request, redirect, url_for, render_template
+from flask import request, redirect, url_for, render_template, make_response
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, ConfigHiddenForm, ConfigEditForm
 from ltwserver.tasks import generate_config_file
 from celery.result import AsyncResult
 
 import json
+import uuid
+import os
 
 @app.route("/")
 def index():
@@ -45,13 +47,31 @@ def rdfsource():
         config_form = ConfigHiddenForm()
 
         if request.form.keys()[0].startswith('rdf-') and rdf_form.validate_on_submit():
-            t = generate_config_file.delay(data_source='rdf', rdf_data=request.files[rdf_form.rdf_file.name].read(), rdf_format=rdf_form.format.data)
-            return render_template('rdf_step1_a.html', data_source='rdf', task_id=t.task_id, form=config_form)
+            rdf_file = request.files[rdf_form.rdf_file.name]
+            # Call Celery task
+            t = generate_config_file.delay(data_source='rdf', rdf_data=rdf_file.read(), rdf_format=rdf_form.format.data)
+
+            # Save file in upload folder and some other variables as cookies
+            file_path = os.path.join(os.path.abspath(app.config['UPLOAD_FOLDER']), str(uuid.uuid4()))
+            rdf_file.save(file_path)
+
+            resp = make_response(render_template('rdf_step1_a.html', data_source='rdf', task_id=t.task_id, form=config_form))
+            resp.set_cookie('data_source', 'rdf')
+            resp.set_cookie('file_path', file_path)
+            resp.set_cookie('file_format', rdf_form.format.data)
+            return resp
 
         elif request.form.keys()[0].startswith('sparql-') and sparql_form.validate_on_submit():
+            # Call Celery task
             t = generate_config_file.delay(data_source='sparql', sparql_url=sparql_form.url.data, sparql_graph=sparql_form.graph.data)
-            return render_template('rdf_step1_a.html', data_source='sparql', task_id=t.task_id, form=config_form)
-    
+
+            # Save some variables as cookies
+            resp = make_response(render_template('rdf_step1_a.html', data_source='sparql', task_id=t.task_id, form=config_form))
+            resp.set_cookie('data_source', 'sparql')
+            resp.set_cookie('sparql_url', sparql_form.url.data)
+            resp.set_cookie('sparql_graph', sparql_form.graph.data)
+            return resp
+
     return render_template('rdf_step1.html', rdf_form=rdf_form, sparql_form=sparql_form)
 
 @app.route("/configure/rdfsource/step2", methods=['GET', 'POST'])
@@ -72,6 +92,7 @@ def rdfsource_step3():
     config_file = config_form.config_file.data
 
     if config_form.validate_on_submit():
+        print request.cookies.get('file_path')
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
