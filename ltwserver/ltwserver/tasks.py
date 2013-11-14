@@ -36,7 +36,7 @@ def make_omelette(data_source, rdf_data=None, rdf_format=None, sparql_url=None, 
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 75, 'progress_msg': 'Mixing all...'})
     print 'Mixing all...'
     sleep(3)
-    current_task.update_state(state='PROGRESS', meta={'progress_percent': 90, 'progress_msg': 'Doing the omelette...'}) 
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 90, 'progress_msg': 'Doing the omelette...'})
     print 'Doing the omelette...'
     sleep(2)
 
@@ -117,3 +117,25 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
             current_task.update_state(state='PROGRESS', meta={'progress_percent': int(70 + (30 * float(num_of_processed_props) / float(num_of_props)))})
 
     return config_file.serialize(format='turtle')
+
+@celery.task()
+def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparql_url=None, sparql_graph=None):
+    from time import sleep
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 20, 'progress_msg': 'Peeling potatoes...'})
+    print 'Peeling potatoes...'
+    sleep(3)
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 50, 'progress_msg': 'Frying potatoes...'})
+    print 'Frying potatoes...'
+    sleep(5)
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 55, 'progress_msg': 'Adding onion...'})
+    print 'Adding onion...'
+    sleep(2)
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 60, 'progress_msg': 'Stirring eggs...'})
+    print 'Stirring eggs...'
+    sleep(3)
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 75, 'progress_msg': 'Mixing all...'})
+    print 'Mixing all...'
+    sleep(3)
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 90, 'progress_msg': 'Doing the omelette...'})
+    print 'Doing the omelette...'
+    sleep(2)

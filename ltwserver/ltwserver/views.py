@@ -12,7 +12,7 @@
 from ltwserver import app, celery
 from flask import request, redirect, url_for, render_template, make_response
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, ConfigHiddenForm, ConfigEditForm
-from ltwserver.tasks import generate_config_file
+from ltwserver.tasks import generate_config_file, get_all_data
 from celery.result import AsyncResult
 
 import json
@@ -92,8 +92,19 @@ def rdfsource_step3():
     config_file = config_form.config_file.data
 
     if config_form.validate_on_submit():
-        print request.cookies.get('file_path')
-        return render_template('rdf_step2.html', config_file=config_file, form=config_form)
+        # Call Celery task
+        rdf_data = None
+        if request.cookies.get('file_path'):
+            f = open(request.cookies.get('file_path'), 'r')
+            rdf_data = f.read()
+
+        t = get_all_data.delay(request.cookies.get('data_source'), config_file, rdf_data=rdf_data, rdf_format=request.cookies.get('file_format'),
+            sparql_url=request.cookies.get('sparql_url'), sparql_graph=request.cookies.get('sparql_graph'))
+
+        return render_template('rdf_step3_a.html', task_id=t.task_id)
+    elif not config_file:
+        # Data fetching task completed
+        pass
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
 

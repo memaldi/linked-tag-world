@@ -17,3 +17,44 @@
     {{ field(id=field_id, class="form-control", **kwargs) }}
   </div>
 {% endmacro %}
+
+{% macro task_status_bar(task_id, progress_msg_id, progress_bar_id, interval=500, on_success=None, on_error=None) %}
+ <script type="text/javascript">
+  $(document).ready(function() {
+    // pole state of the current task
+    var percent = 10;
+    var interval = setInterval(function() {
+      $.getJSON('/_get_task_status', {task_id: "{{ task_id }}"},
+        function(data) {
+          if (data.error) {
+            clearInterval(interval);
+            {% if on_error %}
+              {{ on_error }}(data.error);
+            {% endif %}
+          }
+          else if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
+            if ((data.result && data.result.progress_msg) || data.status == 'SUCCESS') {
+              var txt = $("#{{ progress_msg_id }} p:last-child").text();
+              $("#{{ progress_msg_id }} p:last-child").text(txt + ' OK!');
+              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
+            }
+            if (data.status == 'SUCCESS') {
+              clearInterval(interval);
+              percent = 100;
+              $("#{{ progress_msg_id }}").append( "<p class=\"text-success\">Done!</p>" );
+              {% if on_success %}
+                {{ on_success }}(data.result);
+              {% endif %}
+            }
+            else {
+              percent = parseInt(data.result.progress_percent);
+              if (data.result.progress_msg)
+                $("#{{ progress_msg_id }}").append( "<p>" + data.result.progress_msg + "</p>" );
+            }
+            $("#{{ progress_bar_id }}").css({'width': percent + '%'});
+          }
+      });
+    }, {{ interval }})
+  });
+ </script>
+{% endmacro %}
