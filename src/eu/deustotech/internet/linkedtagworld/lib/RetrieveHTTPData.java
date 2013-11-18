@@ -14,7 +14,7 @@ import com.hp.hpl.jena.rdf.model.ModelFactory;
 
 import android.os.AsyncTask;
 
-public class RetreiveHTTPData extends AsyncTask<String, Void, Model> {
+public class RetrieveHTTPData extends AsyncTask<String, Void, Model> {
 
 	@Override
 	protected Model doInBackground(String... params) {
