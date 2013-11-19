@@ -48,26 +48,23 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
         data_graph = Graph()
         data_graph.parse(format=rdf_format, data=rdf_data)
     else:
-        data_graph = ConjunctiveGraph('SPARQLStore')
-        data_graph.open(sparql_url)
+        g = ConjunctiveGraph('SPARQLStore')
+        g.open(sparql_url)
+        data_graph = g.get_context(sparql_graph) if sparql_graph else g
 
     config_file = Graph()
     config_file.bind('ltw', LTW)
 
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 25, 'progress_msg': 'Analyzing RDF data with SPARQL...'})
-    graph_str = 'GRAPH <%s>' % sparql_graph if sparql_graph else ''
     data_q_res = data_graph.query(
     '''
         SELECT DISTINCT ?type ?p ?linkto where {
-            %s
-            {
-                ?s a ?type ;
-                    ?p ?o .
-                OPTIONAL { ?o a ?linkto }
-                FILTER (!sameTerm(?p, rdf:type))
-            }
+            ?s a ?type ;
+                ?p ?o .
+            OPTIONAL { ?o a ?linkto }
+            FILTER (!sameTerm(?p, rdf:type))
         }
-    ''' % graph_str
+    '''
     # FILTER (str(?p) != "http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
     # FILTER (!sameTerm(?p, rdf:type))
     )
@@ -126,8 +123,9 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         data_graph = Graph()
         data_graph.parse(format=rdf_format, data=rdf_data)
     else:
-        data_graph = ConjunctiveGraph('SPARQLStore')
-        data_graph.open(sparql_url)
+        g = ConjunctiveGraph('SPARQLStore')
+        g.open(sparql_url)
+        data_graph = g.get_context(sparql_graph) if sparql_graph else g
 
     config_graph = Graph()
     config_graph.parse(data=config_file, format='turtle')
@@ -155,18 +153,13 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
 
         data_dict[class_ont] = {}
 
-        graph_str = 'GRAPH <%s>' % sparql_graph if sparql_graph else ''
-
         data_q_res = data_graph.query(
         '''
             SELECT DISTINCT ?s ?p ?o where {
-                %s
-                {
-                    ?s a <%s> ;
-                        ?p ?o .
-                }
+                ?s a <%s> ;
+                    ?p ?o .
             }
-        ''' % (graph_str, class_ont)
+        ''' % class_ont
         )
 
         main_props = get_main_props_by_class_ont(class_ont, config_graph)
