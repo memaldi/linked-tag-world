@@ -11,7 +11,7 @@
 
 from ltwserver import app, celery
 from flask import request, redirect, url_for, render_template, make_response
-from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, ConfigHiddenForm, ConfigEditForm
+from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm
 from ltwserver.tasks import generate_config_file, get_all_data
 from celery.result import AsyncResult
 
@@ -28,11 +28,16 @@ def configure():
     return render_template('step0.html')
 
 @app.route('/_get_task_status')
-def get_task_status():
-    task_id = request.args.get('task_id', None, type=str)
+def get_task_status(task_id=None, return_result=False):
+    if not task_id:
+        task_id = request.args.get('task_id', None, type=str)
+
     if task_id:
         task = AsyncResult(app=celery, id=task_id)
-        data = {'status': task.state, 'result': task.result}
+        if task.state == 'SUCCESS' and not return_result:
+            data = {'status': task.state}
+        else:    
+            data = {'status': task.state, 'result': task.result}
     else:
         data = {'error': 'No task_id in the request'}
 
@@ -44,7 +49,7 @@ def rdfsource():
     sparql_form = SparqlForm(prefix='sparql')
     
     if request.method == 'POST' and len(request.form.keys()) > 0:
-        config_form = ConfigHiddenForm()
+        config_form = MyHiddenForm()
 
         if request.form.keys()[0].startswith('rdf-') and rdf_form.validate_on_submit():
             rdf_file = request.files[rdf_form.rdf_file.name]
@@ -76,14 +81,15 @@ def rdfsource():
 
 @app.route("/configure/rdfsource/step2", methods=['GET', 'POST'])
 def rdfsource_step2():
-    config_form = ConfigHiddenForm()
+    config_form = MyHiddenForm()
 
     if config_form.validate_on_submit():
-        config_file = config_form.config_file.data
+        config_file = json.loads(get_task_status(task_id=config_form.hidden_field.data, return_result=True))['result']
 
         config_edit_form = ConfigEditForm()
+        config_edit_form.config_file.data = config_file
 
-        return render_template('rdf_step2.html', config_file=config_file, form=config_edit_form)
+        return render_template('rdf_step2.html', form=config_edit_form)
 
 @app.route("/configure/rdfsource/step3", methods=['GET', 'POST'])
 def rdfsource_step3():
@@ -94,17 +100,21 @@ def rdfsource_step3():
     if config_form.validate_on_submit():
         # Call Celery task
         rdf_data = None
-        if request.cookies.get('file_path'):
+        if request.cookies.get('data_source') == 'rdf':
             f = open(request.cookies.get('file_path'), 'r')
             rdf_data = f.read()
 
         t = get_all_data.delay(request.cookies.get('data_source'), config_file, rdf_data=rdf_data, rdf_format=request.cookies.get('file_format'),
             sparql_url=request.cookies.get('sparql_url'), sparql_graph=request.cookies.get('sparql_graph'))
 
-        return render_template('rdf_step3_a.html', task_id=t.task_id)
+        data_form = MyHiddenForm()
+        return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
     elif not config_file:
         # Data fetching task completed
-        pass
+        data_form = MyHiddenForm()
+        if data_form.validate_on_submit():
+            data = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
+            print data
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
 

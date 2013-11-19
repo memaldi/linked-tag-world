@@ -22,13 +22,19 @@
     </div>
   </div>
 </div>
+<form method="POST" action="{{ url_for('rdfsource_step3') }}" id="dataform">
+  {{ form.csrf_token }}
+  {{ form.hidden_field }}
+</form>
 {% endblock %}
 
 {% block scripts %}
   <script type="text/javascript">
   function onsuccess(result) {
-    window.location.replace("{{ url_for('rdfsource_step3') }}");
+    $("#{{ form.hidden_field.id }}").val("{{ task_id }}");
+    $("#dataform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");")
   }
+
   function onerror(error) {
     alert(error);
   }

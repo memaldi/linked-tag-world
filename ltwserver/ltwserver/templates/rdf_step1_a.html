@@ -24,14 +24,14 @@
 </div>
 <form method="POST" action="{{ url_for('rdfsource_step2') }}" id="configform">
   {{ form.csrf_token }}
-  {{ form.config_file }}
+  {{ form.hidden_field }}
 </form>
 {% endblock %}
 
 {% block scripts %}
   <script type="text/javascript">
   function onsuccess(result) {
-    $("#{{ form.config_file.id }}").val(result);
+    $("#{{ form.hidden_field.id }}").val("{{ task_id }}");
     $("#configform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");")
   }
   function onerror(error) {

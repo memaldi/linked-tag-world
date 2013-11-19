@@ -46,8 +46,8 @@ class SparqlForm(Form):
 class TermListForm(Form):
     term_list = TextAreaField('Terms', validators=[DataRequired()])
 
-class ConfigHiddenForm(Form):
-    config_file = HiddenField(validators=[DataRequired()]);
+class MyHiddenForm(Form):
+    hidden_field = HiddenField(validators=[DataRequired()]);
 
 class ConfigEditForm(Form):
     config_file = TextAreaField(validators=[DataRequired(), validate_rdf_data]);
