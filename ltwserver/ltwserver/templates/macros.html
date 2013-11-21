@@ -33,12 +33,10 @@
             {% endif %}
           }
           else if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
-            if ((data.result && data.result.progress_msg) || data.status == 'SUCCESS') {
-              var txt = $("#{{ progress_msg_id }} p:last-child").text();
-              $("#{{ progress_msg_id }} p:last-child").text(txt + ' OK!');
-              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
-            }
+            var last_p_txt = $("#{{ progress_msg_id }} p:last-child").text();
             if (data.status == 'SUCCESS') {
+              $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
+              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");              
               clearInterval(interval);
               percent = 100;
               $("#{{ progress_msg_id }}").append( "<p class=\"text-success\">Done!</p>" );
@@ -48,8 +46,11 @@
             }
             else {
               percent = parseInt(data.result.progress_percent);
-              if (data.result.progress_msg)
+              if (data.result && data.result.progress_msg && last_p_txt != data.result.progress_msg) {
+                $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
+                $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
                 $("#{{ progress_msg_id }}").append( "<p>" + data.result.progress_msg + "</p>" );
+              }
             }
             $("#{{ progress_bar_id }}").css({'width': percent + '%'});
           }
