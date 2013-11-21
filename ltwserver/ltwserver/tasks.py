@@ -8,10 +8,13 @@ from rdflib.namespace import RDF, RDFS, FOAF, SKOS
 from rdflib.term import URIRef, Literal
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
+from multiprocessing import Pool, Value
+from itertools import repeat
 
 import re
 import wikipedia
 import uuid
+from time import sleep
 
 
 # Define RDFlib namespaces
@@ -23,7 +26,6 @@ COMMON_LABEL_PROPS = [RDFS.label, DC.name, FOAF.name, SKOS.prefLabel]
 
 @celery.task()
 def make_omelette(data_source, rdf_data=None, rdf_format=None, sparql_url=None, sparql_graph=None):
-    from time import sleep
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 20, 'progress_msg': 'Peeling potatoes...'})
     print 'Peeling potatoes...'
     sleep(3)
@@ -146,7 +148,7 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         """
     )
 
-    current_task.update_state(state='PROGRESS', meta={'progress_percent': 30, 'progress_msg': 'Finding what data to fetch...'})
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 20, 'progress_msg': 'Fetching your data...'})
 
     ont_class_tot = len(config_q_res)
 
@@ -158,43 +160,60 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
     ltw_data_graph = ltw_conj_data_graph.get_context(graph_id)
 
     progress_per_part = 70 / ont_class_tot
-    last_progress = 30
+    last_progress = 20
 
-    for i, (class_id, class_ont) in enumerate(config_q_res):
-        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
+    counter = Value('f', float(last_progress))
+    max_processes = ont_class_tot if ont_class_tot <= 10 else 10
+    pool = Pool(max_processes, p_q_initializer, [counter])
 
-        # data_dict[class_ont] = {}
+    pool_result = pool.map_async(fetch_and_save_by_class_ont_wrapper, zip([str(a[1]) for a in config_q_res], repeat(config_graph), repeat(data_graph), repeat(ltw_data_graph), repeat(progress_per_part)))
+    
+    pool.close()
+    while not  pool_result.ready():
+        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(counter.value)})
+        sleep(1)
 
-        data_q_res = data_graph.query(
-        '''
-            SELECT DISTINCT ?s ?p ?o where {
-                ?s a <%s> ;
-                    ?p ?o .
-            }
-        ''' % class_ont
-        )
+    #print "yeah!"
+    print pool_result.get()
 
-        # main_props = get_main_props_by_class_ont(class_ont, config_graph)
-        # linkable_props = get_linkable_props_by_class_ont(class_ont, config_graph)
-        props = get_props_by_class_ont(class_ont, config_graph)
-
-        len_data_q_res = len(data_q_res)
-
-        for j, stmt in enumerate(data_q_res):
-            current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress + (progress_per_part * float(j) / float(len_data_q_res))), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
-            if str(stmt[1]) in props:
-                ltw_data_graph.add(stmt)
-
-        last_progress += progress_per_part
-
-        # for s, p, o in data_q_res:
-        #     if not s in data_dict[class_ont]:
-        #         data_dict[class_ont][s] = []
-
-        #     if str(p) in props:
-        #         data_dict[class_ont][s].append( (p, o, str(p) in main_props, str(p) in linkable_props) )
 
     return graph_id
+
+def p_q_initializer(counter):
+    fetch_and_save_by_class_ont_wrapper.counter = counter
+
+def fetch_and_save_by_class_ont_wrapper(tup):
+    tup += (fetch_and_save_by_class_ont_wrapper.counter, )
+    return fetch_and_save_by_class_ont(*tup)
+
+def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_graph, progress_per_part, counter):
+    #current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
+
+    # data_dict[class_ont] = {}
+
+    data_q_res = data_graph.query(
+    '''
+        SELECT DISTINCT ?s ?p ?o where {
+            ?s a <%s> ;
+                ?p ?o .
+        }
+    ''' % class_ont
+    )
+
+    # main_props = get_main_props_by_class_ont(class_ont, config_graph)
+    # linkable_props = get_linkable_props_by_class_ont(class_ont, config_graph)
+
+    len_data_q_res = len(data_q_res)
+    prog_per_iteration = float(progress_per_part) / float(len_data_q_res)
+
+    props = get_props_by_class_ont(class_ont, config_graph)
+
+    for stmt in data_q_res:
+        counter.value += prog_per_iteration
+        #current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress + (progress_per_part * float(j) / float(len_data_q_res))), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
+        if str(stmt[1]) in props:
+            ltw_data_graph.add(stmt)
+
 
 def get_props_by_class_ont(class_ont, config_graph):
     props = config_graph.query(
