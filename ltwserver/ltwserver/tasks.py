@@ -6,9 +6,12 @@ from celery import current_task
 from rdflib import Graph, ConjunctiveGraph, Namespace, BNode
 from rdflib.namespace import RDF, RDFS, FOAF, SKOS
 from rdflib.term import URIRef, Literal
+from rdflib.store import Store
+from rdflib.plugin import get as plugin
 
 import re
 import wikipedia
+import uuid
 
 
 # Define RDFlib namespaces
@@ -130,7 +133,7 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
     config_graph = Graph()
     config_graph.parse(data=config_file, format='turtle')
 
-    data_dict = {}
+    # data_dict = {}
 
     config_q_res = config_graph.query(
         """
@@ -143,15 +146,24 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         """
     )
 
-    current_task.update_state(state='PROGRESS', meta={'progress_percent': 30, 'progress_msg': 'Fetching all the data...'})
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 30, 'progress_msg': 'Finding what data to fetch...'})
 
     ont_class_tot = len(config_q_res)
 
+    Virtuoso = plugin("Virtuoso", Store)
+    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+
+    ltw_conj_data_graph = ConjunctiveGraph(store=store)
+    graph_id = str(uuid.uuid4())
+    ltw_data_graph = ltw_conj_data_graph.get_context(graph_id)
+
+    progress_per_part = 70 / ont_class_tot
+    last_progress = 30
 
     for i, (class_id, class_ont) in enumerate(config_q_res):
-        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(30 + (70 * float(i) / float(ont_class_tot))), 'progress_msg': 'Fetching %ss' % class_id.lower() })
+        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
 
-        data_dict[class_ont] = {}
+        # data_dict[class_ont] = {}
 
         data_q_res = data_graph.query(
         '''
@@ -162,18 +174,27 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         ''' % class_ont
         )
 
-        main_props = get_main_props_by_class_ont(class_ont, config_graph)
-        linkable_props = get_linkable_props_by_class_ont(class_ont, config_graph)
+        # main_props = get_main_props_by_class_ont(class_ont, config_graph)
+        # linkable_props = get_linkable_props_by_class_ont(class_ont, config_graph)
         props = get_props_by_class_ont(class_ont, config_graph)
 
-        for s, p, o in data_q_res:
-            if not s in data_dict[class_ont]:
-                data_dict[class_ont][s] = []
+        len_data_q_res = len(data_q_res)
 
-            if str(p) in props:
-                data_dict[class_ont][s].append( (p, o, str(p) in main_props, str(p) in linkable_props) )
+        for j, stmt in enumerate(data_q_res):
+            current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress + (progress_per_part * float(j) / float(len_data_q_res))), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
+            if str(stmt[1]) in props:
+                ltw_data_graph.add(stmt)
 
-    return data_dict
+        last_progress += progress_per_part
+
+        # for s, p, o in data_q_res:
+        #     if not s in data_dict[class_ont]:
+        #         data_dict[class_ont][s] = []
+
+        #     if str(p) in props:
+        #         data_dict[class_ont][s].append( (p, o, str(p) in main_props, str(p) in linkable_props) )
+
+    return graph_id
 
 def get_props_by_class_ont(class_ont, config_graph):
     props = config_graph.query(
