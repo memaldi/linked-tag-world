@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.text.SpannableString;
 import android.text.style.UnderlineSpan;
 import android.view.View;
@@ -17,10 +16,6 @@ import eu.deustotech.internet.linkedtagworld.vocabulary.LTW;
 import eu.deustotech.internet.linkedtagworld.model.ClassItem;
 import eu.deustotech.internet.linkedtagworld.model.PropertyItem;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.xml.sax.SAXException;
 
 import com.hp.hpl.jena.rdf.model.Literal;
@@ -39,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URL;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +45,10 @@ import javax.xml.parsers.ParserConfigurationException;
  */
 /**
  * Modified by jon on 04/06/13.
+ */
+/**
+ * Main class of library. It loads configuration file, gets RDF data and renders Android application.
+ * @author mikel, jon 
  */
 public class LinkedTagWorld {
 
@@ -71,10 +69,20 @@ public class LinkedTagWorld {
 	
 	private String lang;
 
+	/**
+	 * Default constructor. Loads configuration file.
+	 */
     public LinkedTagWorld() {
     	loadConfiguration();
     }
 
+    /**
+     * Constructor. Load configuration file and assigns context, activity and inputStream properties.
+     * 
+     * @param context the context of the Android Activity where the constructor is called.
+     * @param activity the Android Activity itself.
+     * @param inputStream the InputStream from configuration file.
+     */
     public LinkedTagWorld(Context context, Activity activity, InputStream inputStream) {
         this.context = context;
         this.activity = activity;
@@ -82,6 +90,20 @@ public class LinkedTagWorld {
         loadConfiguration();
     }
 
+    /**
+     * Renders RDF data from URI in corresponding layout.
+     * 
+     * @param URI the URI wich contains the RDF resource. It supports 303 redirect, slash URIs, hash URIs and so on.
+     * @param lang the lang to be retrieved from the RDF resource, in <a target="_blank" href="http://www.loc.gov/standards/iso639-2/php/code_list.php">ISO 639-1</a> code format.
+     * @throws ParserConfigurationException
+     * @throws IOException
+     * @throws SAXException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     * @throws ClassNotFoundException
+     * @throws InterruptedException
+     * @throws ExecutionException
+     */
     public void renderData(String URI, String lang) throws ParserConfigurationException, IOException, SAXException, InstantiationException, IllegalAccessException, ClassNotFoundException, InterruptedException, ExecutionException {
 
         this.model = setModel(URI);
@@ -187,7 +209,7 @@ public class LinkedTagWorld {
 
     private Model setModel(String URI) throws IOException, InterruptedException, ExecutionException {
  	
-    	return new RetreiveHTTPData().execute(URI).get();
+    	return new RetrieveHTTPData().execute(URI).get();
     	
     	/*
         HttpClient client = new DefaultHttpClient();

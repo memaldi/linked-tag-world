@@ -61,10 +61,10 @@ public class LTW {
     /** <p>Specifies the language of the value associated to mapped property.</p> */
     public static final DatatypeProperty language = m_model.createDatatypeProperty( "http://helheim.deusto.es/ltw/0.1#language" );
     
-    /** <p>Represents a ontology class item</p> */
+    /** <p>Represents an ontology class item</p> */
     public static final OntClass ClassItem = m_model.createClass( "http://helheim.deusto.es/ltw/0.1#ClassItem" );
     
-    /** <p>Represents a ontology property item</p> */
+    /** <p>Represents an ontology property item</p> */
     public static final OntClass PropertyItem = m_model.createClass( "http://helheim.deusto.es/ltw/0.1#PropertyItem" );
     
 }
