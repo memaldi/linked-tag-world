@@ -185,8 +185,11 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
     max_processes = len(ont_class_list) if len(ont_class_list) <= celery.conf.MAX_MULTIPROCESSING else celery.conf.MAX_MULTIPROCESSING
     pool = Pool(max_processes, p_q_initializer, [counter])
 
-    fetch_msg = 'Fetching %s' % ', '.join(ont_id_list[:-1])
-    fetch_msg += ' and %s...' % ont_id_list[-1]
+    if len(ont_id_list) > 1:
+        fetch_msg = 'Fetching %s' % ', '.join(ont_id_list[:-1])
+        fetch_msg += ' and %s...' % ont_id_list[-1]
+    else:
+        fetch_msg = 'Fetching %s...' % ont_id_list[0]
 
     pool_result = pool.map_async(fetch_and_save_by_class_ont_wrapper, zip(ont_class_list, repeat(config_graph), repeat(data_graph), repeat(ltw_data_graph), repeat(progress_per_part)))
     
@@ -226,6 +229,7 @@ def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_gr
     prog_per_iteration = float(progress_per_part) / float(len_data_q_res)
 
     props = get_props_by_class_ont(class_ont, config_graph)
+    props.append(str(RDF.type))
 
     for stmt in data_q_res:
         counter.value += prog_per_iteration
