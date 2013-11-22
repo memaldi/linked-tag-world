@@ -16,7 +16,7 @@
           <div class="progress-bar" id="progress-bar" style="width: 10%"></div>
         </div>
         <div class="well well-sm" id="progress-msg">
-          <p class="text-success">Launching background task...</p>
+          <p>Launching background task...</p>
         </div>
       </div>
     </div>
@@ -34,9 +34,6 @@
     $("#{{ form.hidden_field.id }}").val("{{ task_id }}");
     $("#configform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");")
   }
-  function onerror(error) {
-    alert(error);
-  }
   </script>
-  {{ macros.task_status_bar(task_id=task_id, progress_msg_id="progress-msg", progress_bar_id="progress-bar", interval=500, on_success="onsuccess", on_error="onerror") }}
+  {{ macros.task_status_bar(task_id=task_id, progress_msg_id="progress-msg", progress_bar_id="progress-bar", interval=500, on_success="onsuccess") }}
 {% endblock %}

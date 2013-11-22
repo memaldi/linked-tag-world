@@ -34,10 +34,6 @@
     $("#{{ form.hidden_field.id }}").val("{{ task_id }}");
     $("#dataform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");")
   }
-
-  function onerror(error) {
-    alert(error);
-  }
   </script>
-  {{ macros.task_status_bar(task_id=task_id, progress_msg_id="progress-msg", progress_bar_id="progress-bar", interval=500, on_success="onsuccess") }}
+  {{ macros.task_status_bar(task_id=task_id, progress_msg_id="progress-msg", progress_bar_id="progress-bar", interval=2000, on_success="onsuccess") }}
 {% endblock %}

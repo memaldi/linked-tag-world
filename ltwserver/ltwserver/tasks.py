@@ -19,7 +19,7 @@ from time import sleep
 
 # Define RDFlib namespaces
 LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
-DC = Namespace(u"http://purl.org/dc/elements/1.1/")
+DC = Namespace('http://purl.org/dc/elements/1.1/')
 
 # Properties that are used usually as labels in RDF data
 COMMON_LABEL_PROPS = [RDFS.label, DC.name, FOAF.name, SKOS.prefLabel]
@@ -49,30 +49,46 @@ def make_omelette(data_source, rdf_data=None, rdf_format=None, sparql_url=None, 
 def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url=None, sparql_graph=None):
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 15, 'progress_msg': 'Reading provided RDF data...'})
 
-    if data_source == 'rdf':
-        data_graph = Graph()
-        data_graph.parse(format=rdf_format, data=rdf_data)
-    else:
-        g = ConjunctiveGraph('SPARQLStore')
-        g.open(sparql_url)
-        data_graph = g.get_context(sparql_graph) if sparql_graph else g
+    try:
+        if data_source == 'rdf':
+            data_graph = Graph()
+            data_graph.parse(format=rdf_format, data=rdf_data)
+        else:
+            g = ConjunctiveGraph('SPARQLStore')
+            g.open(sparql_url)
+            data_graph = g.get_context(sparql_graph) if sparql_graph else g
+    except Exception, e:
+        raise Exception("An error occurred while trying to read provided data source: %s" % str(e))
 
     config_file = Graph()
     config_file.bind('ltw', LTW)
 
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 25, 'progress_msg': 'Analyzing RDF data with SPARQL...'})
-    data_q_res = data_graph.query(
-    '''
-        SELECT DISTINCT ?type ?p ?linkto where {
-            ?s a ?type ;
-                ?p ?o .
-            OPTIONAL { ?o a ?linkto }
-            FILTER (!sameTerm(?p, rdf:type))
-        }
-    '''
-    # FILTER (str(?p) != "http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-    # FILTER (!sameTerm(?p, rdf:type))
-    )
+    try:
+        data_q_res = data_graph.query(
+        '''
+            SELECT DISTINCT ?type ?p ?linkto where {
+                ?s a ?type ;
+                    ?p ?o .
+                OPTIONAL { ?o a ?linkto }
+                FILTER (!sameTerm(?p, rdf:type))
+            }
+        '''
+        )
+    except:
+        try:
+            data_q_res = data_graph.query(
+            '''
+                SELECT DISTINCT ?type ?p ?linkto where {
+                    ?s a ?type ;
+                        ?p ?o .
+                    OPTIONAL { ?o a ?linkto }
+                    FILTER (str(?p) != "http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+                }
+            '''
+            )
+        except Exception, e:
+            raise Exception("An error occurred while trying to get classes and properties of provided dataset with SPARQL: %s" % str(e))
 
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 60})
 
@@ -85,8 +101,8 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
         else:
             class_prop_items[class_item] = [(prop_item, clickable_prop)]
 
-
-    current_task.update_state(state='PROGRESS', meta={'progress_percent': 70, 'progress_msg': 'Building the LTW configuration file...'})
+    building_msg = 'Building the LTW configuration file...'
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 70, 'progress_msg': building_msg})
     num_of_processed_props = 0
     for class_item, prop_clicks in class_prop_items.items():
         class_name = re.split('/|#', class_item)[-1]
@@ -116,7 +132,7 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
                 config_file.add( (prop_uri, LTW.isMain, Literal(is_main)) )
 
             num_of_processed_props += 1
-            current_task.update_state(state='PROGRESS', meta={'progress_percent': int(70 + (30 * float(num_of_processed_props) / float(num_of_props)))})
+            current_task.update_state(state='PROGRESS', meta={'progress_percent': int(70 + (30 * float(num_of_processed_props) / float(num_of_props))), 'progress_msg': building_msg})
 
     return config_file.serialize(format='turtle')
 
@@ -124,18 +140,19 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
 def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparql_url=None, sparql_graph=None):
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 15, 'progress_msg': 'Reading RDF data...'})
 
-    if data_source == 'rdf':
-        data_graph = Graph()
-        data_graph.parse(format=rdf_format, data=rdf_data)
-    else:
-        g = ConjunctiveGraph('SPARQLStore')
-        g.open(sparql_url)
-        data_graph = g.get_context(sparql_graph) if sparql_graph else g
+    try:
+        if data_source == 'rdf':
+            data_graph = Graph()
+            data_graph.parse(format=rdf_format, data=rdf_data)
+        else:
+            g = ConjunctiveGraph('SPARQLStore')
+            g.open(sparql_url)
+            data_graph = g.get_context(sparql_graph) if sparql_graph else g
+    except Exception, e:
+        raise Exception("An error occurred while trying to read provided data source: %s" % str(e))
 
     config_graph = Graph()
     config_graph.parse(data=config_file, format='turtle')
-
-    # data_dict = {}
 
     config_q_res = config_graph.query(
         """
@@ -150,32 +167,38 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
 
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 20, 'progress_msg': 'Fetching your data...'})
 
-    ont_class_tot = len(config_q_res)
+    ont_id_list = [ str(a[0]).lower() + 's' for a in config_q_res ]
+    ont_class_list = [ str(a[1]) for a in config_q_res ]
 
-    Virtuoso = plugin("Virtuoso", Store)
-    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+    try:
+        Virtuoso = plugin("Virtuoso", Store)
+        store = Virtuoso(celery.conf.VIRTUOSO_ODBC)
+        ltw_conj_data_graph = ConjunctiveGraph(store=store)
+        graph_id = str(uuid.uuid4())
+        ltw_data_graph = ltw_conj_data_graph.get_context(graph_id)
+    except Exception, e:
+        raise Exception("Unable to connect to LTW data source: %s" % str(e))
 
-    ltw_conj_data_graph = ConjunctiveGraph(store=store)
-    graph_id = str(uuid.uuid4())
-    ltw_data_graph = ltw_conj_data_graph.get_context(graph_id)
+    progress_per_part = 80 / len(ont_class_list)
 
-    progress_per_part = 70 / ont_class_tot
-    last_progress = 20
-
-    counter = Value('f', float(last_progress))
-    max_processes = ont_class_tot if ont_class_tot <= 10 else 10
+    counter = Value('f', float(20))
+    max_processes = len(ont_class_list) if len(ont_class_list) <= celery.conf.MAX_MULTIPROCESSING else celery.conf.MAX_MULTIPROCESSING
     pool = Pool(max_processes, p_q_initializer, [counter])
 
-    pool_result = pool.map_async(fetch_and_save_by_class_ont_wrapper, zip([str(a[1]) for a in config_q_res], repeat(config_graph), repeat(data_graph), repeat(ltw_data_graph), repeat(progress_per_part)))
+    fetch_msg = 'Fetching %s' % ', '.join(ont_id_list[:-1])
+    fetch_msg += ' and %s...' % ont_id_list[-1]
+
+    pool_result = pool.map_async(fetch_and_save_by_class_ont_wrapper, zip(ont_class_list, repeat(config_graph), repeat(data_graph), repeat(ltw_data_graph), repeat(progress_per_part)))
     
     pool.close()
-    while not  pool_result.ready():
-        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(counter.value)})
-        sleep(1)
 
-    #print "yeah!"
-    print pool_result.get()
-
+    try:
+        while not pool_result.ready():
+            current_task.update_state(state='PROGRESS', meta={'progress_percent': int(counter.value), 'progress_msg': fetch_msg})
+            sleep(1)
+        pool_result.get()
+    except Exception, e:
+        raise Exception("Error fetching data: %s" % str(e))
 
     return graph_id
 
@@ -187,10 +210,6 @@ def fetch_and_save_by_class_ont_wrapper(tup):
     return fetch_and_save_by_class_ont(*tup)
 
 def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_graph, progress_per_part, counter):
-    #current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
-
-    # data_dict[class_ont] = {}
-
     data_q_res = data_graph.query(
     '''
         SELECT DISTINCT ?s ?p ?o where {
@@ -210,7 +229,6 @@ def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_gr
 
     for stmt in data_q_res:
         counter.value += prog_per_iteration
-        #current_task.update_state(state='PROGRESS', meta={'progress_percent': int(last_progress + (progress_per_part * float(j) / float(len_data_q_res))), 'progress_msg': 'Fetching %ss...' % class_id.lower() })
         if str(stmt[1]) in props:
             ltw_data_graph.add(stmt)
 

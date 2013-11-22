@@ -36,10 +36,11 @@ def get_task_status(task_id=None, return_result=False):
         task = AsyncResult(app=celery, id=task_id)
         if task.state == 'SUCCESS' and not return_result:
             data = {'status': task.state}
-        else:    
-            data = {'status': task.state, 'result': task.result}
+        else:
+            res = task.result if task.state != 'FAILURE' else str(task.result)
+            data = {'status': task.state, 'result': res}
     else:
-        data = {'error': 'No task_id in the request'}
+        data = {'status': 'FAILURE', 'result': 'No task_id in the request'}
 
     return json.dumps(data)
 

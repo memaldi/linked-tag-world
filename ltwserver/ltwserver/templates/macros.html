@@ -26,14 +26,17 @@
     var interval = setInterval(function() {
       $.getJSON('/_get_task_status', {task_id: "{{ task_id }}"},
         function(data) {
-          if (data.error) {
+          var last_p_txt = $("#{{ progress_msg_id }} p:last-child").text();
+          if (data.status == 'FAILURE') {
             clearInterval(interval);
+            $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' ERROR!');
+            $("#{{ progress_msg_id }} p:last-child").addClass("text-danger");
+            $("#{{ progress_msg_id }}").append( "<p class='text-danger'>" + data.result + "</p>" );
             {% if on_error %}
-              {{ on_error }}(data.error);
+              {{ on_error }}(data.result);
             {% endif %}
           }
           else if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
-            var last_p_txt = $("#{{ progress_msg_id }} p:last-child").text();
             if (data.status == 'SUCCESS') {
               $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
               $("#{{ progress_msg_id }} p:last-child").addClass("text-success");              
