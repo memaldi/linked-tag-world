@@ -123,13 +123,13 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
             config_file.add( (prop_uri, LTW.ontologyProperty, URIRef(prop_item)) )
 
             if clickable_prop and clickable_prop in class_prop_items:
-                config_file.add( (prop_uri, LTW.isClickable, Literal(True)) )
+                config_file.add( (prop_uri, LTW.isClickable, Literal(str(True))) )
             else:
-                config_file.add( (prop_uri, LTW.isClickable, Literal(False)) )
+                config_file.add( (prop_uri, LTW.isClickable, Literal(str(False))) )
 
             if not clickable_prop and not is_main and prop_item in COMMON_LABEL_PROPS:
                 is_main = True
-                config_file.add( (prop_uri, LTW.isMain, Literal(is_main)) )
+                config_file.add( (prop_uri, LTW.isMain, Literal(str(is_main))) )
 
             num_of_processed_props += 1
             current_task.update_state(state='PROGRESS', meta={'progress_percent': int(70 + (30 * float(num_of_processed_props) / float(num_of_props))), 'progress_msg': building_msg})
@@ -179,7 +179,7 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
     except Exception, e:
         raise Exception("Unable to connect to LTW data source: %s" % str(e))
 
-    progress_per_part = 80 / len(ont_class_list)
+    progress_per_part = 70 / len(ont_class_list)
 
     counter = Value('f', float(20))
     max_processes = len(ont_class_list) if len(ont_class_list) <= celery.conf.MAX_MULTIPROCESSING else celery.conf.MAX_MULTIPROCESSING
@@ -199,9 +199,17 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         while not pool_result.ready():
             current_task.update_state(state='PROGRESS', meta={'progress_percent': int(counter.value), 'progress_msg': fetch_msg})
             sleep(1)
-        pool_result.get()
+        pool_result.wait()
     except Exception, e:
         raise Exception("Error fetching data: %s" % str(e))
+
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 90, 'progress_msg': 'Saving config file...'})
+    try:
+        ltw_config_data_graph = ltw_conj_data_graph.get_context(graph_id + '_config')
+        for stmt in config_graph:
+            ltw_config_data_graph.add(stmt)
+    except Exception, e:
+        raise Exception("Error saving config file: %s" % str(e))
 
     return graph_id
 
