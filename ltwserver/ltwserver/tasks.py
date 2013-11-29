@@ -259,37 +259,3 @@ def get_props_by_class_ont(class_ont, config_graph):
     for prop in props:
         ret_list.append(str(prop[0]))
     return ret_list
-
-def get_linkable_props_by_class_ont(class_ont, config_graph):
-    linkable_props = config_graph.query(
-    '''
-        SELECT DISTINCT ?prop_ont where {
-            ?s <http://helheim.deusto.es/ltw/0.1#ontologyClass> <%s> ;
-                <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
-            ?prop <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont ;
-                <http://helheim.deusto.es/ltw/0.1#isLinkable> ?linkable .
-            FILTER (?linkable)
-        }
-    ''' % class_ont
-    )
-    ret_list = []
-    for prop in linkable_props:
-        ret_list.append(str(prop[0]))
-    return ret_list
-
-def get_main_props_by_class_ont(class_ont, config_graph):
-    main_props = config_graph.query(
-    '''
-        SELECT DISTINCT ?prop_ont where {
-            ?s <http://helheim.deusto.es/ltw/0.1#ontologyClass> <%s> ;
-                <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
-            ?prop <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont ;
-                <http://helheim.deusto.es/ltw/0.1#isMain> ?main .
-            FILTER (?main)
-        }
-    ''' % class_ont
-    )
-    ret_list = []
-    for prop in main_props:
-        ret_list.append(str(prop[0]))
-    return ret_list

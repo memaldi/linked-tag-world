@@ -15,9 +15,129 @@ from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm,
 from ltwserver.tasks import generate_config_file, get_all_data
 from celery.result import AsyncResult
 
+from rdflib import ConjunctiveGraph, URIRef, Namespace
+from rdflib.store import Store
+from rdflib.plugin import get as plugin
+from rdflib.namespace import RDF
+
 import json
 import uuid
 import os
+import re
+
+LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
+PER_PAGE = app.config['PAGINATION_PER_PAGE']
+
+def count_all_by_class(class_uri, graph_id=None):
+    g = get_ltw_data_graph(graph_id)
+    return len(list(g.subjects(RDF.type, URIRef(class_uri))))
+
+
+def get_linkable_props_by_class_ont(class_ont, config_graph):
+    linkable_props = config_graph.query(
+    '''
+        SELECT DISTINCT ?prop_ont where {
+            ?s <http://helheim.deusto.es/ltw/0.1#ontologyClass> <%s> ;
+                <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
+            ?prop <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont ;
+                <http://helheim.deusto.es/ltw/0.1#isLinkable> ?linkable .
+            FILTER (?linkable)
+        }
+    ''' % class_ont
+    )
+    ret_list = []
+    for prop in linkable_props:
+        ret_list.append(str(prop[0]))
+    return ret_list
+
+
+def get_main_props_by_class_ont(class_ont, config_graph):
+    main_props = config_graph.query(
+    '''
+        SELECT DISTINCT ?prop_ont where {
+            ?s <http://helheim.deusto.es/ltw/0.1#ontologyClass> <%s> ;
+                <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
+            ?prop <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont ;
+                <http://helheim.deusto.es/ltw/0.1#isMain> ?main .
+            FILTER (?main)
+        }
+    ''' % class_ont
+    )
+    ret_list = []
+    for prop in main_props:
+        ret_list.append(str(prop[0]))
+    return ret_list
+
+
+def get_next_resources(page, class_uri, graph_id=None):
+    g = get_ltw_data_graph(graph_id)
+
+    offset = (page - 1) * PER_PAGE
+    q_res = g.query(
+    '''
+        SELECT DISTINCT ?s where {
+            ?s a <%s> .
+        }
+        ORDER BY ?s
+        LIMIT %s
+        OFFSET %s
+    ''' % (class_uri, PER_PAGE, offset)
+    )
+
+    config_graph = get_ltw_config_graph(graph_id)
+    main_props = get_main_props_by_class_ont(class_uri, config_graph)
+    linkable_props = get_linkable_props_by_class_ont(class_uri, config_graph)
+
+    res_dict = {}
+    for s in q_res:
+        main = None
+        data_list = []
+        for p, o in g.predicate_objects(s[0]):
+            if p in main_props:
+                main = o
+            link = p in linkable_props
+
+            data_list.append((p, o, link))
+
+        res_dict[s[0]] = {'triples': data_list, 'main': main }
+
+    return res_dict
+
+
+def get_ltw_data_graph(graph_id=None):
+    if not graph_id:
+        graph_id = request.cookies.get('graph_id')
+    if graph_id:
+        Virtuoso = plugin("Virtuoso", Store)
+        store = Virtuoso(app.config['VIRTUOSO_ODBC'])
+        ltw_data_graph = ConjunctiveGraph(store=store)
+        g = ltw_data_graph.get_context(graph_id)
+
+        # Initialization step needed to make Virtuoso library work
+        g.add((URIRef('initializationstuff'), URIRef('initializationstuff'), URIRef('initializationstuff')))
+        g.remove((URIRef('initializationstuff'), URIRef('initializationstuff'), URIRef('initializationstuff')))
+
+        return g
+    else:
+        return None
+
+def get_ltw_config_graph(graph_id=None):
+    if not graph_id:
+        graph_id = request.cookies.get('graph_id')
+    if graph_id:
+        Virtuoso = plugin("Virtuoso", Store)
+        store = Virtuoso(app.config['VIRTUOSO_ODBC'])
+        ltw_data_graph = ConjunctiveGraph(store=store)
+        g = ltw_data_graph.get_context(graph_id + '_config')
+
+        # Initialization step needed to make Virtuoso library work
+        g.add((URIRef('initializationstuff'), URIRef('initializationstuff'), URIRef('initializationstuff')))
+        g.remove((URIRef('initializationstuff'), URIRef('initializationstuff'), URIRef('initializationstuff')))
+
+        return g
+    else:
+        return None
+
 
 @app.route("/")
 def index():
@@ -44,11 +164,20 @@ def get_task_status(task_id=None, return_result=False):
 
     return json.dumps(data)
 
+@app.route('/_get_next_page')
+def get_next_page():
+    class_uri = request.args.get('class_uri', None, type=str)
+    page = request.args.get('page', None, type=int)
+
+    data = get_next_resources(page, class_uri)
+
+    return json.dumps(data)
+
 @app.route("/configure/rdfsource/step1", methods=['GET', 'POST'])
 def rdfsource():
     rdf_form = RDFDataForm(prefix='rdf')
     sparql_form = SparqlForm(prefix='sparql')
-    
+
     if request.method == 'POST' and len(request.form.keys()) > 0:
         config_form = MyHiddenForm()
 
@@ -114,8 +243,28 @@ def rdfsource_step3():
         # Data fetching task completed
         data_form = MyHiddenForm()
         if data_form.validate_on_submit():
-            data = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
-            print data
+            graph_id = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
+
+            paginators = {}
+            config_graph = get_ltw_config_graph(graph_id)
+            for s, class_uri in config_graph.subject_objects(LTW.ontologyClass):
+                try:
+                    class_uri_id = list(config_graph.objects(URIRef(s), LTW.identifier))[0]
+                except:
+                    class_uri_id = re.split('/|#', class_uri)[-1]
+
+                paginators[class_uri] = { 'id': class_uri_id, 'total': ( count_all_by_class(class_uri, graph_id) / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
+
+            resp = make_response(render_template('rdf_step3.html', paginators=paginators))
+            resp.set_cookie('graph_id', graph_id)
+            return resp
+
+            # resp.set_cookie('data_source', '', expires=0)
+            # resp.set_cookie('file_path', '', expires=0)
+            # resp.set_cookie('file_format', '', expires=0)
+            # resp.set_cookie('data_source', '', expires=0)
+            # resp.set_cookie('sparql_url', '', expires=0)
+            # resp.set_cookie('sparql_graph', '', expires=0)
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
 
@@ -124,5 +273,5 @@ def nonrdfsource():
     form = TermListForm()
     if form.validate_on_submit():
         app.logger.debug('LIST!')
-    
+
     return render_template('nonrdf_step1.html', form=form)

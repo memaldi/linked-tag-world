@@ -39,7 +39,7 @@
           else if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
             if (data.status == 'SUCCESS') {
               $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
-              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");              
+              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
               clearInterval(interval);
               percent = 100;
               $("#{{ progress_msg_id }}").append( "<p class=\"text-success\">Done!</p>" );
@@ -61,4 +61,34 @@
     }, {{ interval }})
   });
  </script>
+{% endmacro %}
+
+{% macro data_tabs(data_dict) %}
+  <ul class="nav nav-pills nav-stacked">
+    {% for s in data_dict %}
+      <!-- Nav tabs -->
+      {% if data_dict[s][main] %}
+        <li><a href="#datatab_{{ loop.index0|string }}" data-toggle="tab">{{ data_dict[s][main] }}</a></li>
+      {% else %}
+        <li><a href="#datatab_{{ loop.index0|string }}" data-toggle="tab">{{ s }}</a></li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+  <div class="tab-content">
+    {% for s, data in data_dict.items() %}
+      <!-- Tab panes -->
+      <div class="tab-pane fade {% if loop.index0 == 0 %}in active{% endif %}" id="datatab_{{ loop.index0|string }}">
+        <table class="table table-condensed">
+          <tbody>
+            {% for triple in data.triples %}
+              <tr>
+                <td>{{ triple[0] }}</td>
+                <td>{{ triple[1] }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  </div>
 {% endmacro %}
