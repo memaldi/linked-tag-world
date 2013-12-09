@@ -85,17 +85,18 @@ def get_next_resources(page, class_uri, graph_id=None):
     )
 
     config_graph = get_ltw_config_graph(graph_id)
-    main_props = get_main_props_by_class_ont(class_uri, config_graph)
-    linkable_props = get_linkable_props_by_class_ont(class_uri, config_graph)
+
+    main_props = [str(prop) for prop in get_main_props_by_class_ont(class_uri, config_graph)]
+    linkable_props = [str(prop) for prop in get_linkable_props_by_class_ont(class_uri, config_graph)]
 
     res_dict = {}
     for s in q_res:
         main = None
         data_list = []
         for p, o in g.predicate_objects(s[0]):
-            if p in main_props:
+            if str(p) in main_props:
                 main = o
-            link = p in linkable_props
+            link = str(p) in linkable_props
 
             data_list.append((p, o, link))
 
@@ -183,12 +184,16 @@ def rdfsource():
 
         if request.form.keys()[0].startswith('rdf-') and rdf_form.validate_on_submit():
             rdf_file = request.files[rdf_form.rdf_file.name]
+            rdf_data = rdf_file.read()
             # Call Celery task
-            t = generate_config_file.delay(data_source='rdf', rdf_data=rdf_file.read(), rdf_format=rdf_form.format.data)
+            t = generate_config_file.delay(data_source='rdf', rdf_data=rdf_data, rdf_format=rdf_form.format.data)
 
             # Save file in upload folder and some other variables as cookies
             file_path = os.path.join(os.path.abspath(app.config['UPLOAD_FOLDER']), str(uuid.uuid4()))
-            rdf_file.save(file_path)
+
+            f = open(file_path, 'w')
+            f.write(rdf_data)
+            f.close()
 
             resp = make_response(render_template('rdf_step1_a.html', data_source='rdf', task_id=t.task_id, form=config_form))
             resp.set_cookie('data_source', 'rdf')
@@ -231,7 +236,7 @@ def rdfsource_step3():
         # Call Celery task
         rdf_data = None
         if request.cookies.get('data_source') == 'rdf':
-            f = open(request.cookies.get('file_path'), 'r')
+            f = open(request.cookies.get('file_path'))
             rdf_data = f.read()
 
         t = get_all_data.delay(request.cookies.get('data_source'), config_file, rdf_data=rdf_data, rdf_format=request.cookies.get('file_format'),
@@ -253,7 +258,8 @@ def rdfsource_step3():
                 except:
                     class_uri_id = re.split('/|#', class_uri)[-1]
 
-                paginators[class_uri] = { 'id': class_uri_id, 'total': ( count_all_by_class(class_uri, graph_id) / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
+                count_class = count_all_by_class(class_uri, graph_id)
+                paginators[class_uri] = { 'id': class_uri_id, 'total': count_class, 'pages': ( count_class / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
 
             resp = make_response(render_template('rdf_step3.html', paginators=paginators))
             resp.set_cookie('graph_id', graph_id)
