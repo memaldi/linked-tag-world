@@ -40,47 +40,6 @@
 {% block scripts %}
   <script src="{{ url_for('static', filename='js/bootstrap-paginator.min.js') }}"></script>
   <script>
-    function generate_data_tab_html(data) {
-      html = '<ul class="nav nav-tabs nav-stacked">';
-      var i = 0;
-      for (var s in data) {
-        html += '<li><a href="#datatab_' + i + '" data-toggle="tab">';
-        if (data[s]['main'])
-          html += data[s]['main'] + '</a></li>';
-        else
-          html += s + '</a></li>';
-        i += 1;
-      }
-      html += '</ul>';
-
-      i = 0;
-      html += '<div class="tab-content">';
-      for (var s in data) {
-        html += '<div class="tab-pane fade';
-        if (i == 0)
-          html += 'in active'
-        html += '" id="datatab_' + i + '">'
-        html += '<table class="table table-condensed">'
-        html += '<tbody>'
-
-        for (var j in data[s]['triples']) {
-          var triple = data[s]['triples'][j];
-          html += '<tr>';
-          html += '  <td>' + triple[0] + '</td>';
-          html += '  <td>' + triple[1] + '</td>';
-          html += '</tr>';
-        }
-        html += '</tbody>'
-        html += '</table>'
-        html += '</div>'
-
-        i += 1;
-      }
-      html += '</div>'
-      return html
-    }
-
-
     {% for class_uri, paginator in paginators.items() %}
       var options_{{ loop.index0|string }} = {
           bootstrapMajorVersion: 3,
@@ -90,11 +49,12 @@
               $.getJSON('/_get_next_page',
                   {
                     class_uri: "{{ class_uri }}",
+                    class_id: "{{ paginator.id }}",
                     page: page
                   },
                   function(data) {
                     var html_tab = '<div id="data_tabs_{{ loop.index0|string }}">';
-                    html_tab += generate_data_tab_html(data);
+                    html_tab += data['html']; //generate_data_tab_html(data);
                     html_tab += '</div>';
 
                     $("#data_tabs_{{ loop.index0|string }}").replaceWith(html_tab);

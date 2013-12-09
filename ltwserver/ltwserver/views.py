@@ -169,10 +169,17 @@ def get_task_status(task_id=None, return_result=False):
 def get_next_page():
     class_uri = request.args.get('class_uri', None, type=str)
     page = request.args.get('page', None, type=int)
+    class_id = request.args.get('class_id', None, type=str)
 
     data = get_next_resources(page, class_uri)
 
-    return json.dumps(data)
+    template = app.jinja_env.from_string('''
+        {% import "macros.html" as macros %}
+        {{ macros.data_tabs(data, class_id) }}
+        ''')
+    html = template.render(data=data, class_id=class_id)
+
+    return json.dumps({'html': html})
 
 @app.route("/configure/rdfsource/step1", methods=['GET', 'POST'])
 def rdfsource():
