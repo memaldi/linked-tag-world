@@ -192,7 +192,7 @@ def get_all_data(data_source, config_file, rdf_data=None, rdf_format=None, sparq
         fetch_msg = 'Fetching %s...' % ont_id_list[0]
 
     pool_result = pool.map_async(fetch_and_save_by_class_ont_wrapper, zip(ont_class_list, repeat(config_graph), repeat(data_graph), repeat(ltw_data_graph), repeat(progress_per_part)))
-    
+
     pool.close()
 
     try:
