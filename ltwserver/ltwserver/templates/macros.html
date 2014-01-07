@@ -66,29 +66,39 @@
 {% macro data_tabs(data_dict, id) %}
   <div class="panel-group" id="accordion">
     {% for s, data in data_dict.items() %}
-      <div class="panel panel-default">
-        <div class="panel-heading">
-          <h2 class="panel-title">
-            <a data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">
-              {% if data_dict[s].main %} {{ data_dict[s].main }} {% else %} {{ s }} {% endif %}
-            </a>
-          </h2>
-        </div>
-        <div id="collapse_{{ id }}_{{ loop.index0|string }}" class="panel-collapse collapse">
-          <div class="panel-body">
-            <table class="table table-condensed">
-              <tbody>
-                {% for triple in data.triples %}
-                  <tr>
-                    <td>{{ triple[0] }}</td>
-                    <td>{{ triple[1] }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+        <p>
+          <div class="panel panel-primary">
+            <div class="media">
+              <a class="pull-left" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">
+                <img class="media-object" style="width: 80px;" src="{{ url_for('qr_route', url=s, size=2) }}">
+              </a>
+              <div class="media-body">
+                <p><h4 class="media-heading">{% if data_dict[s].main %} {{ data_dict[s].main }} <small>{{ s }}</small> {% else %} {{ s }} {% endif %}</h4></p>
+                <a class="btn btn-primary btn-sm" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">More</a>
+                <a class="btn btn-primary btn-sm" href="{{ url_for('edit_resource', url=s) }}">Edit & enrich!</a>
+              </div>
+            </div>
+
+            <div id="collapse_{{ id }}_{{ loop.index0|string }}" class="panel-collapse collapse">
+              <div class="panel-body">
+                <table class="table table-condensed">
+                  <tbody>
+                    {% for triple in data.triples %}
+                      <tr>
+                        <td>{{ triple[0] }}</td>
+                        <td>{{ triple[1] }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
-        </div>
-      </div>
+        </p>
+        <!--div class="panel panel-default"-->
+
+      <!--/div-->
     {% endfor %}
   </div>
 {% endmacro %}

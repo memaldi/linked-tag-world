@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block header %}Configure LTW{% endblock %}
+
+{% block title %}Step 3 <small>Visualize and enrich your data</small>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Edit & enrich!</h3>
+      </div>
+      <div class="panel-body">
+        <div class="col-md-2">
+          {% if data.img %}
+            <p><img class="img-thumbnail col-md-12" src="{{ data.img }}"></p>
+          {% endif %}
+          <img class="img-thumbnail col-md-12" src="{{ url_for('qr_route', url=url, size=4) }}">
+        </div>
+        <div class="col-md-10">
+          <h3>{% if data.main %} {{ data.main }} <small>{{ url }}</small> {% else %} {{ url }} {% endif %}</h3>
+          <!--div class="soften-limited"></div-->
+          <br />
+          <p>
+            <ul class="nav nav-pills">
+              <li class="active"><a href="#edit" data-toggle="tab">Edit stored data</a></li>
+              <li><a href="#enrich" data-toggle="tab">Find related Linked Data</a></li>
+            </ul>
+          </p>
+          <br />
+          <div class="tab-content">
+            <div class="tab-pane active" id="edit">
+
+              <form class="form-horizontal" role="form">
+                {% for triple in data.triples %}
+                  {% if triple[1].startswith('http://') %}
+                    <div class="form-group">
+                      <label class="col-sm-2 control-label"><a id="pop_{{ loop.index0|string }}">{{ triple[2] }}</a></label>
+                      <div class="col-sm-10">
+                        <input type="text" class="form-control" value="{{ triple[1] }}" disabled>
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="form-group">
+                      <label class="col-sm-2 control-label"><a id="pop_{{ loop.index0|string }}">{{ triple[2] }}</a></label>
+                      <div class="col-sm-10">
+                        <input type="text" class="form-control" value="{{ triple[1] }}">
+                      </div>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+                <div class="form-group">
+                  <div class="col-sm-offset-2 col-sm-10">
+                    <button type="submit" class="btn btn-default">Save</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="tab-pane" id="enrich">
+              YEAH
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+{% for triple in data.triples %}
+    $('#pop_{{ loop.index0|string }}').popover({
+           content: '{{ triple[0] }}',
+           placement: 'top',
+           trigger: 'hover'
+    });
+{% endfor %}
+</script>
+{% endblock %}

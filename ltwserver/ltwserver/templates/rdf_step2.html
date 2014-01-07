@@ -19,6 +19,7 @@
         <div class="col-md-9" id="code">
           <form class="form-horizontal" action="{{ url_for('rdfsource_step3') }}" method="POST" id="configform">
             {{ form.csrf_token }}
+            {{ form.download_next }}
             <fieldset>
               {% if form.errors %}
                 {{ macros.with_errors(form) }}
@@ -31,9 +32,9 @@
             </fieldset>
           </form>
         </div>
-        <div class="well well-sm col-md-3" id="progress-msg">
-          <button type="button" class="btn btn-primary col-md-6">Download</button>
-          <button type="button" class="btn btn-primary col-md-6" id="nextbutton">Next</button>
+        <div class="well well-sm col-md-3">
+          <button type="button" class="btn btn-primary btn-sm col-md-6" id="downloadbutton">Download</button>
+          <button type="button" class="btn btn-primary btn-sm col-md-6" id="nextbutton">Next</button>
         </div>
       </div>
     </div>
@@ -55,7 +56,14 @@
   myCodeMirror.setSize($("#{{ form.config_file.id }}").width(), $("#{{ form.config_file.id }}").height());
 
   $( "#nextbutton" ).click(function() {
-    myCodeMirror.save()
+    myCodeMirror.save();
+    $("#{{ form.download_next.id }}").val("next");
+    $( "#configform" ).submit();
+  });
+
+  $( "#downloadbutton" ).click(function() {
+    myCodeMirror.save();
+    $("#{{ form.download_next.id }}").val("download");
     $( "#configform" ).submit();
   });
 </script>

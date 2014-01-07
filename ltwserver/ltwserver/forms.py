@@ -51,3 +51,4 @@ class MyHiddenForm(Form):
 
 class ConfigEditForm(Form):
     config_file = TextAreaField(validators=[DataRequired(), validate_rdf_data]);
+    download_next = HiddenField();

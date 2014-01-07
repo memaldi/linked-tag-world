@@ -12,7 +12,6 @@ from multiprocessing import Pool, Value
 from itertools import repeat
 
 import re
-import wikipedia
 import uuid
 from time import sleep
 
@@ -130,6 +129,7 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
             if not clickable_prop and not is_main and prop_item in COMMON_LABEL_PROPS:
                 is_main = True
                 config_file.add( (prop_uri, LTW.isMain, Literal(str(is_main))) )
+                config_file.add( (prop_uri, LTW.isLinkable, Literal(str(True))) )
 
             num_of_processed_props += 1
             current_task.update_state(state='PROGRESS', meta={'progress_percent': int(70 + (30 * float(num_of_processed_props) / float(num_of_props))), 'progress_msg': building_msg})

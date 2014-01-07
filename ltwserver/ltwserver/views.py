@@ -10,10 +10,11 @@
 """
 
 from ltwserver import app, celery
-from flask import request, redirect, url_for, render_template, make_response
+from flask import request, redirect, url_for, render_template, make_response, send_file
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm
 from ltwserver.tasks import generate_config_file, get_all_data
 from celery.result import AsyncResult
+from StringIO import StringIO
 
 from rdflib import ConjunctiveGraph, URIRef, Namespace
 from rdflib.store import Store
@@ -24,9 +25,12 @@ import json
 import uuid
 import os
 import re
+import qrcode
+import wikipedia
 
 LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 PER_PAGE = app.config['PAGINATION_PER_PAGE']
+IMG_PROPS = ['http://xmlns.com/foaf/0.1/depiction']
 
 def count_all_by_class(class_uri, graph_id=None):
     g = get_ltw_data_graph(graph_id)
@@ -69,8 +73,51 @@ def get_main_props_by_class_ont(class_ont, config_graph):
     return ret_list
 
 
+def get_property_labels(config_graph):
+    main_props = config_graph.query(
+    '''
+        SELECT DISTINCT ?prop_ont, ?prop_id where {
+            ?s <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
+            ?prop <http://helheim.deusto.es/ltw/0.1#identifier> ?prop_id ;
+                <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont .
+        }
+    '''
+    )
+    ret_dict = {}
+    for prop, prop_id in main_props:
+        ret_dict[str(prop)] = str(prop_id)
+    return ret_dict
+
+
+def get_resource_triples(data_graph, config_graph, class_uri, s):
+    main_props = [str(prop) for prop in get_main_props_by_class_ont(class_uri, config_graph)]
+    linkable_props = [str(prop) for prop in get_linkable_props_by_class_ont(class_uri, config_graph)]
+    property_labels = get_property_labels(config_graph)
+
+    main = None
+
+    img = None
+
+    data_list = []
+    linkable = []
+    for p, o in data_graph.predicate_objects(URIRef(s)):
+        if str(p) != str(RDF.type):
+            label = property_labels[str(p)] if str(p) in property_labels else str(p)
+            if str(p) in main_props:
+                main = o
+            elif str(p) in IMG_PROPS:
+                img = o
+            if str(p) in linkable_props:
+                linkable.append(str(p))
+
+            data_list.append((p, o, label.title()))
+
+    return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable}
+
+
 def get_next_resources(page, class_uri, graph_id=None):
     g = get_ltw_data_graph(graph_id)
+    config_graph = get_ltw_config_graph(graph_id)
 
     offset = (page - 1) * PER_PAGE
     q_res = g.query(
@@ -84,23 +131,9 @@ def get_next_resources(page, class_uri, graph_id=None):
     ''' % (class_uri, PER_PAGE, offset)
     )
 
-    config_graph = get_ltw_config_graph(graph_id)
-
-    main_props = [str(prop) for prop in get_main_props_by_class_ont(class_uri, config_graph)]
-    linkable_props = [str(prop) for prop in get_linkable_props_by_class_ont(class_uri, config_graph)]
-
     res_dict = {}
     for s in q_res:
-        main = None
-        data_list = []
-        for p, o in g.predicate_objects(s[0]):
-            if str(p) in main_props:
-                main = o
-            link = str(p) in linkable_props
-
-            data_list.append((p, o, link))
-
-        res_dict[s[0]] = {'triples': data_list, 'main': main }
+        res_dict[str(s[0])] = get_resource_triples(g, config_graph, class_uri, str(s[0]))
 
     return res_dict
 
@@ -122,6 +155,7 @@ def get_ltw_data_graph(graph_id=None):
     else:
         return None
 
+
 def get_ltw_config_graph(graph_id=None):
     if not graph_id:
         graph_id = request.cookies.get('graph_id')
@@ -138,6 +172,49 @@ def get_ltw_config_graph(graph_id=None):
         return g
     else:
         return None
+
+
+def get_dbpedia_uri(term, lang):
+    """
+    Get the corresponding DBpedia URI from a wikipedia term (taking in account the language of the term)
+    """
+
+    DBPEDIA_RESOURCE_URI = 'dbpedia.org/resource/'
+    if lang == 'en':
+        return 'http://%s%s' % (DBPEDIA_RESOURCE_URI, str(term))
+    else:
+        return 'http://%s.%s%s' % (lang, DBPEDIA_RESOURCE_URI, str(term))
+
+
+def search_dbpedia_trough_wikipedia(literal, lang='en'):
+    """
+    Search a literal in Wikipedia (taking in account the language of the literal) and return a list of related DBpedia resources
+    """
+
+    ret = {}
+    ret[literal] = []
+    wikipedia.set_lang(lang)
+    for term in wikipedia.search(str(literal)):
+        summary = wikipedia.summary(term, sentences=1)
+        #imgs = wikipedia.page(term).images
+        term = term.encode('utf-8').replace(' ', '_')
+        ret[literal].append( (get_dbpedia_uri(term, lang), summary) )
+    return ret
+
+
+@app.route("/qr/<path:url>/<size>")
+# Thanks to https://gist.github.com/plausibility/5787586
+def qr_route(url, size=10):
+    qr = qrcode.QRCode(
+        box_size=size,
+    )
+    qr.add_data(url)
+    qr.make()
+    img = StringIO()
+    qr_img = qr.make_image()
+    qr_img.save(img)
+    img.seek(0)
+    return send_file(img, mimetype="image/png")
 
 
 @app.route("/")
@@ -165,6 +242,7 @@ def get_task_status(task_id=None, return_result=False):
 
     return json.dumps(data)
 
+
 @app.route('/_get_next_page')
 def get_next_page():
     class_uri = request.args.get('class_uri', None, type=str)
@@ -180,6 +258,7 @@ def get_next_page():
     html = template.render(data=data, class_id=class_id)
 
     return json.dumps({'html': html})
+
 
 @app.route("/configure/rdfsource/step1", methods=['GET', 'POST'])
 def rdfsource():
@@ -221,6 +300,7 @@ def rdfsource():
 
     return render_template('rdf_step1.html', rdf_form=rdf_form, sparql_form=sparql_form)
 
+
 @app.route("/configure/rdfsource/step2", methods=['GET', 'POST'])
 def rdfsource_step2():
     config_form = MyHiddenForm()
@@ -233,6 +313,7 @@ def rdfsource_step2():
 
         return render_template('rdf_step2.html', form=config_edit_form)
 
+
 @app.route("/configure/rdfsource/step3", methods=['GET', 'POST'])
 def rdfsource_step3():
     config_form = ConfigEditForm()
@@ -240,17 +321,23 @@ def rdfsource_step3():
     config_file = config_form.config_file.data
 
     if config_form.validate_on_submit():
-        # Call Celery task
-        rdf_data = None
-        if request.cookies.get('data_source') == 'rdf':
-            f = open(request.cookies.get('file_path'))
-            rdf_data = f.read()
+        if config_form.download_next.data == 'download':
+            response = make_response(config_file)
+            response.headers['Content-Type'] = 'text/turtle'
+            response.headers['Content-Disposition'] = 'attachment; filename=config.ttl'
+            return response
+        else:
+            # Call Celery task
+            rdf_data = None
+            if request.cookies.get('data_source') == 'rdf':
+                f = open(request.cookies.get('file_path'))
+                rdf_data = f.read()
 
-        t = get_all_data.delay(request.cookies.get('data_source'), config_file, rdf_data=rdf_data, rdf_format=request.cookies.get('file_format'),
-            sparql_url=request.cookies.get('sparql_url'), sparql_graph=request.cookies.get('sparql_graph'))
+            t = get_all_data.delay(request.cookies.get('data_source'), config_file, rdf_data=rdf_data, rdf_format=request.cookies.get('file_format'),
+                sparql_url=request.cookies.get('sparql_url'), sparql_graph=request.cookies.get('sparql_graph'))
 
-        data_form = MyHiddenForm()
-        return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
+            data_form = MyHiddenForm()
+            return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
     elif not config_file:
         # Data fetching task completed
         data_form = MyHiddenForm()
@@ -268,6 +355,8 @@ def rdfsource_step3():
                 count_class = count_all_by_class(class_uri, graph_id)
                 paginators[class_uri] = { 'id': class_uri_id, 'total': count_class, 'pages': ( count_class / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
 
+            print graph_id
+
             resp = make_response(render_template('rdf_step3.html', paginators=paginators))
             resp.set_cookie('graph_id', graph_id)
             return resp
@@ -280,6 +369,24 @@ def rdfsource_step3():
             # resp.set_cookie('sparql_graph', '', expires=0)
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
+
+
+@app.route("/configure/rdfsource/step3/edit/<path:url>", methods=['GET'])
+def edit_resource(url):
+    graph_id = request.cookies.get('graph_id')
+    if graph_id:
+        data_graph = get_ltw_data_graph(graph_id)
+        config_graph = get_ltw_config_graph(graph_id)
+        class_uri = list(data_graph.objects(URIRef(url), RDF.type))[0]
+
+        res_data = get_resource_triples(data_graph, config_graph, str(class_uri), url)
+
+        for link in res_data['linkable']:
+            for o in data_graph.objects(URIRef(url), URIRef(link)):
+                print search_dbpedia_trough_wikipedia(str(o.encode('utf-8')), 'eu')
+
+        return render_template('edit_resource.html', data=res_data, url=url)
+
 
 @app.route("/configure/nonrdfsource/", methods=['GET', 'POST'])
 def nonrdfsource():
