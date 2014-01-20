@@ -1,6 +1,7 @@
 # coding=utf-8
 
 from ltwserver import celery
+from ltwserver.utils import get_props_by_class_ont
 
 from celery import current_task
 from rdflib import Graph, ConjunctiveGraph, Namespace, BNode
@@ -242,19 +243,3 @@ def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_gr
         counter.value += prog_per_iteration
         if str(stmt[1]) in props:
             ltw_data_graph.add(stmt)
-
-
-def get_props_by_class_ont(class_ont, config_graph):
-    props = config_graph.query(
-    '''
-        SELECT DISTINCT ?prop_ont where {
-            ?s <http://helheim.deusto.es/ltw/0.1#ontologyClass> <%s> ;
-                <http://helheim.deusto.es/ltw/0.1#hasPropertyItem> ?prop .
-            ?prop <http://helheim.deusto.es/ltw/0.1#ontologyProperty> ?prop_ont .
-        }
-    ''' % class_ont
-    )
-    ret_list = []
-    for prop in props:
-        ret_list.append(str(prop[0]))
-    return ret_list
