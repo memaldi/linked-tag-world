@@ -96,14 +96,15 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
     for class_item, prop_item, clickable_prop in data_q_res:
         num_of_props += 1
         if class_item in class_prop_items:
-            class_prop_items[class_item].append((prop_item, clickable_prop))
+            if prop_item not in class_prop_items[class_item] or not class_prop_items[class_item][prop_item]:
+                class_prop_items[class_item][prop_item] = clickable_prop
         else:
-            class_prop_items[class_item] = [(prop_item, clickable_prop)]
+            class_prop_items[class_item] = { prop_item: clickable_prop }
 
     building_msg = 'Building the LTW configuration file...'
     current_task.update_state(state='PROGRESS', meta={'progress_percent': 70, 'progress_msg': building_msg})
     num_of_processed_props = 0
-    for class_item, prop_clicks in class_prop_items.items():
+    for class_item in class_prop_items:
         class_name = re.split('/|#', class_item)[-1]
         class_uri = URIRef('#%sMap' % class_name)
         config_file.add( (class_uri, RDF.type, LTW.ClassItem) )
@@ -111,9 +112,7 @@ def generate_config_file(data_source, rdf_data=None, rdf_format=None, sparql_url
         config_file.add( (class_uri, LTW.identifier, Literal(class_name)) )
 
         is_main = False
-        for prop_click in prop_clicks:
-            prop_item, clickable_prop = prop_click
-
+        for prop_item, clickable_prop in class_prop_items[class_item].items():
             prop_uri = BNode()
             prop_name = re.split('/|#', prop_item)[-1].lower()
 
