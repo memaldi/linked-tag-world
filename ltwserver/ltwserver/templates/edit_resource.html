@@ -16,7 +16,7 @@
           {% if data.img %}
             <p><img class="img-thumbnail col-md-12" src="{{ data.img }}"></p>
           {% endif %}
-          <img class="img-thumbnail col-md-12" src="{{ url_for('qr_route', url=url, size=4) }}">
+          <img class="img-thumbnail col-md-12" src="{{ url_for('qr_route', url=data.ltwuri, size=4) }}">
         </div>
         <div class="col-md-10">
           <h3>{% if data.main %} {{ data.main }} <small>{{ url }}</small> {% else %} {{ url }} {% endif %}</h3>

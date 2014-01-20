@@ -1,7 +1,7 @@
 # coding=utf-8
 
 """
-    Linked Tag Workld Server
+    Linked Tag World Server
     ------------------------
 
     A little LTW configuring server written in Flask.
@@ -10,13 +10,13 @@
 """
 
 from ltwserver import app, celery
-from flask import request, redirect, url_for, render_template, make_response, send_file
+from flask import request, redirect, url_for, render_template, make_response, send_file, Response
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm
 from ltwserver.tasks import generate_config_file, get_all_data
 from celery.result import AsyncResult
 from StringIO import StringIO
 
-from rdflib import ConjunctiveGraph, URIRef, Namespace
+from rdflib import Graph, ConjunctiveGraph, URIRef, Namespace
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
 from rdflib.namespace import RDF
@@ -31,6 +31,13 @@ import wikipedia
 LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 PER_PAGE = app.config['PAGINATION_PER_PAGE']
 IMG_PROPS = ['http://xmlns.com/foaf/0.1/depiction']
+SUPPORTED_RDF_HEADERS = {
+    'application/rdf+xml': 'xml',
+    'text/turtle': 'turtle',
+    'text/n3': 'n3',
+    'text/plain': 'nt',
+    'application/n-quads': 'nquads',
+}
 
 def count_all_by_class(class_uri, graph_id=None):
     g = get_ltw_data_graph(graph_id)
@@ -89,7 +96,7 @@ def get_property_labels(config_graph):
     return ret_dict
 
 
-def get_resource_triples(data_graph, config_graph, class_uri, s):
+def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
     main_props = [str(prop) for prop in get_main_props_by_class_ont(class_uri, config_graph)]
     linkable_props = [str(prop) for prop in get_linkable_props_by_class_ont(class_uri, config_graph)]
     property_labels = get_property_labels(config_graph)
@@ -112,7 +119,8 @@ def get_resource_triples(data_graph, config_graph, class_uri, s):
 
             data_list.append((p, o, label.title()))
 
-    return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable}
+    graph_id = graph_id if graph_id else request.cookies.get('graph_id')
+    return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable, 'ltwuri': get_ltw_uri(s, graph_id)}
 
 
 def get_next_resources(page, class_uri, graph_id=None):
@@ -136,6 +144,11 @@ def get_next_resources(page, class_uri, graph_id=None):
         res_dict[str(s[0])] = get_resource_triples(g, config_graph, class_uri, str(s[0]))
 
     return res_dict
+
+
+def get_ltw_uri(uri, graph_id):
+    url_root = request.url_root[:-1] if request.url_root.endswith('/') else request.url_root
+    return '%s/res/%s/%s' % ( url_root, graph_id, uri )
 
 
 def get_ltw_data_graph(graph_id=None):
@@ -200,6 +213,29 @@ def search_dbpedia_trough_wikipedia(literal, lang='en'):
         term = term.encode('utf-8').replace(' ', '_')
         ret[literal].append( (get_dbpedia_uri(term, lang), summary) )
     return ret
+
+
+def request_wants_rdf():
+# Based on http://flask.pocoo.org/snippets/45/. Thanks!
+    accepted_headers = [ header for header in SUPPORTED_RDF_HEADERS ]
+    accepted_headers.append('text/html')
+    best = request.accept_mimetypes.best_match(accepted_headers)
+    if best in SUPPORTED_RDF_HEADERS and request.accept_mimetypes[best] > request.accept_mimetypes['text/html']:
+        return best
+    return None
+
+
+@app.route('/res/<graph_id>/<path:url>')
+def rdf_description_of_resource(graph_id, url):
+    data_graph = get_ltw_data_graph(graph_id)
+    requested_mimetype = request_wants_rdf()
+    if requested_mimetype and data_graph != None:
+        g = Graph()
+        for p, o in data_graph.query('SELECT DISTINCT ?p ?o WHERE { <%s> ?p ?o }' % url):
+            g.add( (URIRef(url), p, o) )
+
+        return Response(response=g.serialize(format=SUPPORTED_RDF_HEADERS[requested_mimetype]), mimetype=requested_mimetype)
+    return render_template('406_error.html'), 406
 
 
 @app.route("/qr/<path:url>/<size>")

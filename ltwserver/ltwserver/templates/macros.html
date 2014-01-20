@@ -70,7 +70,7 @@
           <div class="panel panel-primary">
             <div class="media">
               <a class="pull-left" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">
-                <img class="media-object" style="width: 80px;" src="{{ url_for('qr_route', url=s, size=2) }}">
+                <img class="media-object" style="width: 80px;" src="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
               </a>
               <div class="media-body">
                 <p><h4 class="media-heading">{% if data_dict[s].main %} {{ data_dict[s].main }} <small>{{ s }}</small> {% else %} {{ s }} {% endif %}</h4></p>
