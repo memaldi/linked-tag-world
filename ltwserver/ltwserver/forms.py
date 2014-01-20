@@ -1,6 +1,6 @@
 from flask_wtf import Form
 from wtforms.fields.html5 import URLField
-from wtforms.fields import TextAreaField, TextField, SelectField, HiddenField
+from wtforms.fields import TextAreaField, TextField, SelectField, HiddenField, PasswordField, BooleanField
 from wtforms.validators import DataRequired, url, ValidationError
 from flask_wtf.file import FileField
 from rdflib import ConjunctiveGraph, Graph
@@ -52,3 +52,13 @@ class MyHiddenForm(Form):
 class ConfigEditForm(Form):
     config_file = TextAreaField(validators=[DataRequired(), validate_rdf_data]);
     download_next = HiddenField();
+
+class LoginForm(Form):
+    email = TextField('Email', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember me')
+
+class RegisterForm(Form):
+    name = TextField('Full name', validators=[DataRequired()])
+    email = TextField('Email', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])

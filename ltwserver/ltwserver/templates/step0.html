@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block header %}Configure LTW{% endblock %}
+{% block header %}Create new LTW app{% endblock %}
 
 {% block title %}Step 0 <small>Select your data source</small>{% endblock %}
 
@@ -16,7 +16,7 @@
           Select this option if you want to load already RDF-ized data. You can provide the URL of a SPARQL endpoint or upload a RDF file.</p>
         </p>
         <p class="text-center">
-          <a href="{{ url_for('rdfsource') }}"><img src="{{ url_for('static', filename='img/rdf-icon.png') }}" class="img-rounded" width="140"></a>
+          <a href="{{ url_for('rdfsource') }}"><img src="{{ url_for('static', filename='img/rdf-icon.png') }}" class="img-rounded" width="90"></a>
         </p>
       </div>
     </div>
@@ -31,7 +31,7 @@
           Select this option if you want to insert a list of terms. We will try to find related resources in DBpedia and build a new dataset from it, from which build the LTW app.</p>
         </p>
         <p class="text-center">
-          <a href="{{ url_for('nonrdfsource') }}"><img src="{{ url_for('static', filename='img/list-icon.png') }}" class="img-rounded" width="140"></a>
+          <a href="{{ url_for('nonrdfsource') }}"><img src="{{ url_for('static', filename='img/list-icon.png') }}" class="img-rounded" width="90"></a>
         </p>
       </div>
     </div>

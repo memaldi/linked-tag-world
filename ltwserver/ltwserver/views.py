@@ -1,20 +1,23 @@
 # coding=utf-8
 
-"""
+'''
     Linked Tag World Server
     ------------------------
 
     A little LTW configuring server written in Flask.
 
     :copyright: (c) 2013 by Jon Lazaro.
-"""
+'''
 
-from ltwserver import app, celery
-from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm
+from ltwserver import app, celery, login_manager
+from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm, LoginForm, RegisterForm
 from ltwserver.tasks import generate_config_file, get_all_data
-from ltwserver.utils import *
+from ltwserver.utils import count_all_by_class, get_resource_triples, get_next_resources, get_ltw_data_graph, \
+    get_ltw_config_graph, search_dbpedia_trough_wikipedia, request_wants_rdf, PER_PAGE, SUPPORTED_RDF_HEADERS
+from ltwserver.models import db, User #, App, Endpoint
+from flask.ext.login import login_user, logout_user, login_required, current_user
 
-from flask import request, redirect, url_for, render_template, make_response, send_file, Response
+from flask import request, redirect, url_for, render_template, make_response, send_file, flash, Response
 from celery.result import AsyncResult
 from StringIO import StringIO
 
@@ -29,43 +32,87 @@ import qrcode
 
 LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 
-@app.route('/res/<graph_id>/<path:url>')
-def rdf_description_of_resource(graph_id, url):
-    data_graph = get_ltw_data_graph(graph_id)
-    requested_mimetype = request_wants_rdf()
-    if requested_mimetype and data_graph != None:
-        g = Graph()
-        for p, o in data_graph.query('SELECT DISTINCT ?p ?o WHERE { <%s> ?p ?o }' % url):
-            g.add( (URIRef(url), p, o) )
 
-        return Response(response=g.serialize(format=SUPPORTED_RDF_HEADERS[requested_mimetype]), mimetype=requested_mimetype)
-    return render_template('406_error.html'), 406
+@login_manager.user_loader
+def load_user(userid):
+    return User.query.filter_by(email=userid).first()
 
 
-@app.route("/qr/<path:url>/<size>")
-# Thanks to https://gist.github.com/plausibility/5787586
-def qr_route(url, size=10):
-    qr = qrcode.QRCode(
-        box_size=size,
-    )
-    qr.add_data(url)
-    qr.make()
-    img = StringIO()
-    qr_img = qr.make_image()
-    qr_img.save(img)
-    img.seek(0)
-    return send_file(img, mimetype="image/png")
+@app.route('/login', methods=['POST'])
+def login():
+    if not current_user.is_anonymous():
+        return redirect(url_for('index'))
+
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.password == form.password.data:
+            login_user(user, remember=form.remember_me)
+            flash('Successfully logged in.', 'success')
+        else:
+            flash('Incorrect user or password.', 'danger')
+        return redirect(request.args.get('next') or url_for('index'))
+
+    return redirect(url_for('index', login_form=form))
 
 
-@app.route("/")
-def index():
-    return redirect(url_for('configure'))
+@app.route('/register', methods=['POST'])
+def register():
+    if not current_user.is_anonymous():
+        return redirect(url_for('index'))
 
-@app.route("/configure/")
+    form = RegisterForm()
+    if form.validate_on_submit():
+        if not User.query.filter_by(email=form.email.data).first():
+            user = User(name=form.name.data, email=form.email.data, password=form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            login_user(user, remember=True)
+            flash('Successfully registered. Welcome to LTW!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Already registered email.', 'danger')
+
+    return redirect(url_for('index', register_form=form))
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    flash('Unauthorized. Please login or register.', 'warning')
+    return redirect(url_for('index'))
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+
+@app.route('/')
+def index(login_form=None, register_form=None):
+    if current_user.is_anonymous():
+        login_form = LoginForm() if not login_form else login_form
+        register_form = RegisterForm() if not register_form else register_form
+        return render_template('index.html', login_form=login_form, register_form=register_form)
+    else:
+         return redirect(url_for('dashboard'))
+
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    return render_template('dashboard.html')
+
+
+@app.route('/newapp')
+@login_required
 def configure():
     return render_template('step0.html')
 
+
 @app.route('/_get_task_status')
+@login_required
 def get_task_status(task_id=None, return_result=False):
     if not task_id:
         task_id = request.args.get('task_id', None, type=str)
@@ -84,6 +131,7 @@ def get_task_status(task_id=None, return_result=False):
 
 
 @app.route('/_get_next_page')
+@login_required
 def get_next_page():
     class_uri = request.args.get('class_uri', None, type=str)
     page = request.args.get('page', None, type=int)
@@ -92,7 +140,7 @@ def get_next_page():
     data = get_next_resources(page, class_uri)
 
     template = app.jinja_env.from_string('''
-        {% import "macros.html" as macros %}
+        {% import 'macros.html' as macros %}
         {{ macros.data_tabs(data, class_id) }}
         ''')
     html = template.render(data=data, class_id=class_id)
@@ -100,7 +148,8 @@ def get_next_page():
     return json.dumps({'html': html})
 
 
-@app.route("/configure/rdfsource/step1", methods=['GET', 'POST'])
+@app.route('/newapp/rdfsource/step1', methods=['GET', 'POST'])
+@login_required
 def rdfsource():
     rdf_form = RDFDataForm(prefix='rdf')
     sparql_form = SparqlForm(prefix='sparql')
@@ -141,7 +190,8 @@ def rdfsource():
     return render_template('rdf_step1.html', rdf_form=rdf_form, sparql_form=sparql_form)
 
 
-@app.route("/configure/rdfsource/step2", methods=['GET', 'POST'])
+@app.route('/newapp/rdfsource/step2', methods=['GET', 'POST'])
+@login_required
 def rdfsource_step2():
     config_form = MyHiddenForm()
 
@@ -154,7 +204,8 @@ def rdfsource_step2():
         return render_template('rdf_step2.html', form=config_edit_form)
 
 
-@app.route("/configure/rdfsource/step3", methods=['GET', 'POST'])
+@app.route('/newapp/rdfsource/step3', methods=['GET', 'POST'])
+@login_required
 def rdfsource_step3():
     config_form = ConfigEditForm()
 
@@ -211,7 +262,8 @@ def rdfsource_step3():
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
 
 
-@app.route("/configure/rdfsource/step3/edit/<path:url>", methods=['GET'])
+@app.route('/newapp/rdfsource/step3/edit/<path:url>', methods=['GET'])
+@login_required
 def edit_resource(url):
     graph_id = request.cookies.get('graph_id')
     if graph_id:
@@ -228,10 +280,40 @@ def edit_resource(url):
         return render_template('edit_resource.html', data=res_data, url=url)
 
 
-@app.route("/configure/nonrdfsource/", methods=['GET', 'POST'])
+@app.route('/newapp/nonrdfsource/', methods=['GET', 'POST'])
+@login_required
 def nonrdfsource():
     form = TermListForm()
     if form.validate_on_submit():
         app.logger.debug('LIST!')
 
     return render_template('nonrdf_step1.html', form=form)
+
+@app.route('/res/<graph_id>/<path:url>')
+@login_required
+def rdf_description_of_resource(graph_id, url):
+    data_graph = get_ltw_data_graph(graph_id)
+    requested_mimetype = request_wants_rdf()
+    if requested_mimetype and data_graph != None:
+        g = Graph()
+        for p, o in data_graph.query('SELECT DISTINCT ?p ?o WHERE { <%s> ?p ?o }' % url):
+            g.add( (URIRef(url), p, o) )
+
+        return Response(response=g.serialize(format=SUPPORTED_RDF_HEADERS[requested_mimetype]), mimetype=requested_mimetype)
+    return render_template('406_error.html'), 406
+
+
+@app.route('/qr/<path:url>/<size>')
+@login_required
+# Thanks to https://gist.github.com/plausibility/5787586
+def qr_route(url, size=10):
+    qr = qrcode.QRCode(
+        box_size=size,
+    )
+    qr.add_data(url)
+    qr.make()
+    img = StringIO()
+    qr_img = qr.make_image()
+    qr_img.save(img)
+    img.seek(0)
+    return send_file(img, mimetype='image/png')

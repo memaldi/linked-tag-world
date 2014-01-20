@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block header %}LTW Dashboard{% endblock %}
+
+{% block title %}<small>Manage your LTW apps or create new ones!</small>{% endblock %}
+
+{% block content %}
+<div class="row clearfix">
+  <div class="col-md-9">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Manage your LTW apps</h3>
+      </div>
+      <div class="panel-body">
+        {% if apps %}
+
+        {% else %}
+          <p>You have no LTW apps. <a href="{{ url_for('configure') }}">Click here</a> to create your first app!</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Create a new LTW app</h3>
+      </div>
+      <div class="panel-body">
+        <p><a href="{{ url_for('configure') }}">Click here</a> to create your first app!</p>
+        <p>You can find documentation on how to create your apps here.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
