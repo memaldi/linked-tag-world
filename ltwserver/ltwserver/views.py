@@ -12,26 +12,25 @@
 from ltwserver import app, celery, login_manager
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm, LoginForm, \
     RegisterForm, AppNameForm
-from ltwserver.tasks import generate_config_file, get_all_data
-from ltwserver.utils import count_all_by_class, get_resource_triples, get_next_resources, get_ltw_data_graph, \
-    get_ltw_config_graph, search_dbpedia_trough_wikipedia, request_wants_rdf, PER_PAGE, SUPPORTED_RDF_HEADERS
+from ltwserver.utils import get_resource_triples, get_next_resources, get_ltw_data_graph, get_ltw_config_graph, \
+    search_dbpedia_trough_wikipedia, request_wants_rdf, call_to_generate_config_file, \
+    call_to_get_all_data, get_data_paginators, SUPPORTED_RDF_HEADERS
 from ltwserver.models import db, User, App, Endpoint
+from ltwserver.tasks import generate_config_file, get_all_data
+
 from flask.ext.login import login_user, logout_user, login_required, current_user
 
 from flask import session, request, redirect, url_for, render_template, make_response, send_file, flash, Response
 from celery.result import AsyncResult
 from StringIO import StringIO
 
-from rdflib import Graph, URIRef, Namespace
+from rdflib import Graph, URIRef
 from rdflib.namespace import RDF
 
 import json
 import uuid
 import os
-import re
 import qrcode
-
-LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 
 
 @login_manager.user_loader
@@ -97,13 +96,22 @@ def index(login_form=None, register_form=None):
         register_form = RegisterForm() if not register_form else register_form
         return render_template('index.html', login_form=login_form, register_form=register_form)
     else:
-         return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    apps = []
+    for ltwapp in current_user.apps:
+        ltwapp_dict = {
+            'name': ltwapp.name,
+            'id': ltwapp.id,
+        }
+        ltwapp_dict['apk'] = '%s/bin/%s-release.apk' % (ltwapp.app_path, ltwapp.name) if ltwapp.app_path else ''
+        apps.append(ltwapp_dict)
+
+    return render_template('dashboard.html', apps=apps)
 
 
 @app.route('/newapp', methods=['GET', 'POST'])
@@ -159,19 +167,7 @@ def rdfsource():
             ltwapp.endpoint = endpoint
             db.session.commit()
 
-        rdf_data = None
-        if ltwapp.rdf_file:
-            with open(ltwapp.rdf_file) as f:
-                rdf_data = f.read()
-
-        # Call Celery task
-        t = generate_config_file.delay(
-            data_source='rdf' if rdf_data else 'sparql',
-            rdf_data=rdf_data,
-            rdf_format=ltwapp.rdf_file_format,
-            sparql_url=ltwapp.endpoint.url,
-            sparql_graph=ltwapp.endpoint.graph
-        )
+        t = call_to_generate_config_file(ltwapp, generate_config_file)
         return render_template('rdf_step1_a.html', data_source='rdf' if ltwapp.rdf_file else 'sparql', task_id=t.task_id, form=config_form)
 
     return render_template('rdf_step1.html', rdf_form=rdf_form, sparql_form=sparql_form)
@@ -208,26 +204,9 @@ def rdfsource_step3():
         db.session.commit()
 
         if config_form.download_next.data == 'download':
-            response = make_response(config_file)
-            response.headers['Content-Type'] = 'text/turtle'
-            response.headers['Content-Disposition'] = 'attachment; filename=config.ttl'
-            return response
+            return download_config_file(config_file=config_file)
         else:
-            # Call Celery task
-            rdf_data = None
-            if ltwapp.rdf_file:
-                with open(ltwapp.rdf_file) as f:
-                    rdf_data = f.read()
-
-            t = get_all_data.delay(
-                data_source='rdf' if rdf_data else 'sparql',
-                config_file=ltwapp.config_file,
-                rdf_data=rdf_data,
-                rdf_format=ltwapp.rdf_file_format,
-                sparql_url=ltwapp.endpoint.url,
-                sparql_graph=ltwapp.endpoint.graph
-            )
-
+            t = call_to_get_all_data(ltwapp, get_all_data)
             data_form = MyHiddenForm()
             return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
 
@@ -236,20 +215,10 @@ def rdfsource_step3():
         data_form = MyHiddenForm()
         if data_form.validate_on_submit():
             graph_id = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
-
-            paginators = {}
-            config_graph = get_ltw_config_graph(graph_id)
-            for s, class_uri in config_graph.subject_objects(LTW.ontologyClass):
-                try:
-                    class_uri_id = list(config_graph.objects(URIRef(s), LTW.identifier))[0]
-                except:
-                    class_uri_id = re.split('/|#', class_uri)[-1]
-
-                count_class = count_all_by_class(class_uri, graph_id)
-                paginators[class_uri] = { 'id': class_uri_id, 'total': count_class, 'pages': ( count_class / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
-
             ltwapp.graph_id = graph_id
             db.session.commit()
+
+            paginators = get_data_paginators(graph_id)
             return render_template('rdf_step3.html', paginators=paginators)
     else:
         return render_template('rdf_step2.html', config_file=config_file, form=config_form)
@@ -350,3 +319,64 @@ def qr_route(url, size=10):
     qr_img.save(img)
     img.seek(0)
     return send_file(img, mimetype='image/png')
+
+
+@app.route('/ltwapp/<app_id>/delete')
+@login_required
+def delete_ltw_app(app_id):
+    ltwapp = App.query.filter_by(id=app_id).first()
+    if ltwapp.user == current_user:
+        db.session.delete(ltwapp)
+        db.session.commit()
+        return redirect(url_for('dashboard'))
+    else:
+        return render_template('401_error.html'), 401
+
+
+@app.route('/ltwapp/<app_id>/config/download')
+@login_required
+def download_config_file(app_id=None, config_file=None):
+    if not config_file:
+        ltwapp = App.query.filter_by(id=app_id).first()
+        if ltwapp.user == current_user:
+            config_file = ltwapp.config_file
+        else:
+            return render_template('401_error.html'), 401
+
+    response = make_response(config_file)
+    response.headers['Content-Type'] = 'text/turtle'
+    response.headers['Content-Disposition'] = 'attachment; filename=config.ttl'
+    return response
+
+
+@app.route('/ltwapp/<app_id>/data/edit')
+@login_required
+def edit_data(app_id):
+    ltwapp = App.query.filter_by(id=app_id).first()
+    if ltwapp.user != current_user:
+        return render_template('401_error.html'), 401
+
+    session['app'] = app_id
+
+    if ltwapp.graph_id:
+        paginators = get_data_paginators(ltwapp.graph_id)
+        return render_template('rdf_step3.html', paginators=paginators)
+    else:
+        t = call_to_get_all_data(ltwapp, get_all_data)
+        data_form = MyHiddenForm()
+        return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
+
+
+@app.route('/ltwapp/<app_id>/config/reload')
+@login_required
+def reload_config_file(app_id):
+    ltwapp = App.query.filter_by(id=app_id).first()
+    if ltwapp.user != current_user:
+        return render_template('401_error.html'), 401
+
+    session['app'] = app_id
+
+    t = call_to_generate_config_file(ltwapp, generate_config_file)
+
+    config_form = MyHiddenForm()
+    return render_template('rdf_step1_a.html', data_source='rdf' if ltwapp.rdf_file else 'sparql', task_id=t.task_id, form=config_form)

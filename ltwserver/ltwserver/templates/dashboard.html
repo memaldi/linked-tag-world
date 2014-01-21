@@ -13,7 +13,36 @@
       </div>
       <div class="panel-body">
         {% if apps %}
-
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Config file</th>
+                <th>APK</th>
+                <th>Data</th>
+                <th>Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ltwapp in apps %}
+                <tr>
+                  <td>{{ ltwapp.name }}</td>
+                  <td>
+                    <a href="{{ url_for('download_config_file', app_id=ltwapp.id) }}"><span class="glyphicon glyphicon-download"></span></a> <a href="{{ url_for('reload_config_file', app_id=ltwapp.id) }}"><span class="glyphicon glyphicon-refresh"></span></a>
+                  </td>
+                  <td>
+                    {% if ltwapp.apk %}
+                      <a href="{{ url_for('dashboard') }}"><span class="glyphicon glyphicon-download"></span></a>
+                    {% else %}
+                      <a href="{{ url_for('dashboard') }}">Generate the Android app</a>
+                    {% endif %}
+                  </td>
+                  <td><a href="{{ url_for('edit_data', app_id=ltwapp.id) }}">Edit & enrich your data</a></td>
+                  <td><a href="{{ url_for('delete_ltw_app', app_id=ltwapp.id) }}"><span class="glyphicon glyphicon-remove-circle"></span></a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         {% else %}
           <p>You have no LTW apps. <a href="{{ url_for('configure') }}">Click here</a> to create your first app!</p>
         {% endif %}

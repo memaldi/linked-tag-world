@@ -5,12 +5,13 @@ from flask import request, session
 
 from ltwserver.models import App
 
-from rdflib import ConjunctiveGraph, URIRef
+from rdflib import ConjunctiveGraph, URIRef, Namespace
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
 from rdflib.namespace import RDF
 
 import wikipedia
+import re
 
 PER_PAGE = app.config['PAGINATION_PER_PAGE']
 IMG_PROPS = ['http://xmlns.com/foaf/0.1/depiction']
@@ -21,6 +22,7 @@ SUPPORTED_RDF_HEADERS = {
     'text/plain': 'nt',
     'application/n-quads': 'nquads',
 }
+LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 
 
 def count_all_by_class(class_uri, graph_id=None):
@@ -122,6 +124,8 @@ def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
     if not graph_id:
         ltwapp = App.query.filter_by(id=session['app']).first()
         graph_id = ltwapp.graph_id
+
+    print graph_id
 
     return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable, 'ltwuri': get_ltw_uri(s, graph_id)}
 
@@ -232,3 +236,53 @@ def request_wants_rdf():
     if best in SUPPORTED_RDF_HEADERS and request.accept_mimetypes[best] > request.accept_mimetypes['text/html']:
         return best
     return None
+
+
+def call_to_generate_config_file(ltwapp, task):
+    # Call Celery task
+    rdf_data = None
+    if ltwapp.rdf_file:
+        with open(ltwapp.rdf_file) as f:
+            rdf_data = f.read()
+
+    t = task.delay(
+        data_source='rdf' if rdf_data else 'sparql',
+        rdf_data=rdf_data,
+        rdf_format=ltwapp.rdf_file_format,
+        sparql_url=ltwapp.endpoint.url,
+        sparql_graph=ltwapp.endpoint.graph
+    )
+    return t
+
+
+def call_to_get_all_data(ltwapp, task):
+    # Call Celery task
+    rdf_data = None
+    if ltwapp.rdf_file:
+        with open(ltwapp.rdf_file) as f:
+            rdf_data = f.read()
+
+    t = task.delay(
+        data_source='rdf' if rdf_data else 'sparql',
+        config_file=ltwapp.config_file,
+        rdf_data=rdf_data,
+        rdf_format=ltwapp.rdf_file_format,
+        sparql_url=ltwapp.endpoint.url,
+        sparql_graph=ltwapp.endpoint.graph
+    )
+    return t
+
+def get_data_paginators(graph_id):
+    paginators = {}
+    config_graph = get_ltw_config_graph(graph_id)
+    for s, class_uri in config_graph.subject_objects(LTW.ontologyClass):
+        try:
+            class_uri_id = list(config_graph.objects(URIRef(s), LTW.identifier))[0]
+        except:
+            class_uri_id = re.split('/|#', class_uri)[-1]
+
+        count_class = count_all_by_class(class_uri, graph_id)
+        paginators[class_uri] = { 'id': class_uri_id, 'total': count_class, 'pages': ( count_class / PER_PAGE ) + 1, 'data': get_next_resources(1, class_uri, graph_id) }
+
+    return paginators
+
