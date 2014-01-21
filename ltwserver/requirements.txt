@@ -9,3 +9,4 @@ https://pypi.python.org/packages/source/u/uricore/uricore-0.1.2.tar.gz#egg=urico
 -e hg+https://bitbucket.org/maparent/virtuoso#egg=virtuoso
 Flask-Login==0.2.9
 Flask-SQLAlchemy==1.0
+Flask-KVSession==0.4

@@ -1,7 +1,9 @@
 # coding=utf-8
 
 from ltwserver import app
-from flask import request
+from flask import request, session
+
+from ltwserver.models import App
 
 from rdflib import ConjunctiveGraph, URIRef
 from rdflib.store import Store
@@ -117,11 +119,18 @@ def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
 
             data_list.append((p, o, label.title()))
 
-    graph_id = graph_id if graph_id else request.cookies.get('graph_id')
+    if not graph_id:
+        ltwapp = App.query.filter_by(id=session['app']).first()
+        graph_id = ltwapp.graph_id
+
     return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable, 'ltwuri': get_ltw_uri(s, graph_id)}
 
 
 def get_next_resources(page, class_uri, graph_id=None):
+    if not graph_id:
+        ltwapp = App.query.filter_by(id=session['app']).first()
+        graph_id = ltwapp.graph_id
+
     g = get_ltw_data_graph(graph_id)
     config_graph = get_ltw_config_graph(graph_id)
 
@@ -151,7 +160,8 @@ def get_ltw_uri(uri, graph_id):
 
 def get_ltw_data_graph(graph_id=None):
     if not graph_id:
-        graph_id = request.cookies.get('graph_id')
+        ltwapp = App.query.filter_by(id=session['app']).first()
+        graph_id = ltwapp.graph_id
     if graph_id:
         Virtuoso = plugin("Virtuoso", Store)
         store = Virtuoso(app.config['VIRTUOSO_ODBC'])
@@ -169,7 +179,8 @@ def get_ltw_data_graph(graph_id=None):
 
 def get_ltw_config_graph(graph_id=None):
     if not graph_id:
-        graph_id = request.cookies.get('graph_id')
+        ltwapp = App.query.filter_by(id=session['app']).first()
+        graph_id = ltwapp.graph_id
     if graph_id:
         Virtuoso = plugin("Virtuoso", Store)
         store = Virtuoso(app.config['VIRTUOSO_ODBC'])
@@ -214,7 +225,7 @@ def search_dbpedia_trough_wikipedia(literal, lang='en'):
 
 
 def request_wants_rdf():
-# Based on http://flask.pocoo.org/snippets/45/. Thanks!
+    # Based on http://flask.pocoo.org/snippets/45/. Thanks!
     accepted_headers = [ header for header in SUPPORTED_RDF_HEADERS ]
     accepted_headers.append('text/html')
     best = request.accept_mimetypes.best_match(accepted_headers)

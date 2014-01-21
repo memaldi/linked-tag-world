@@ -4,7 +4,19 @@ from ltwserver import app
 
 db = SQLAlchemy(app)
 
-class User(db.Model, UserMixin):
+class BaseModel():
+    """
+    An abstract base class model that provides self-updating
+    'created' and 'modified'
+    """
+    log_created = db.Column(db.DateTime, default=db.func.now())
+    log_modified = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+    class Meta:
+        abstract = True
+
+
+class User(db.Model, BaseModel, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(1000))
     email = db.Column(db.String(120), unique=True)
@@ -22,11 +34,12 @@ class User(db.Model, UserMixin):
         return '<User %r>' % self.name
 
 
-class App(db.Model):
+class App(db.Model, BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(1000))
     graph_id = db.Column(db.String(1000))
     rdf_file = db.Column(db.String(1000))
+    rdf_file_format = db.Column(db.String(100))
     config_file = db.Column(db.String(1000))
     app_path = db.Column(db.String(1000))
 
@@ -49,7 +62,7 @@ class App(db.Model):
         return '<App %r>' % self.name
 
 
-class Endpoint(db.Model):
+class Endpoint(db.Model, BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     url = db.Column(db.String(1000))
     graph = db.Column(db.String(1000))

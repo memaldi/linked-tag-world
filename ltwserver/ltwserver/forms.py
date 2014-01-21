@@ -62,3 +62,7 @@ class RegisterForm(Form):
     name = TextField('Full name', validators=[DataRequired()])
     email = TextField('Email', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
+
+class AppNameForm(Form):
+    name = TextField('App name', validators=[DataRequired()])
+    data_source = HiddenField(validators=[DataRequired()])
