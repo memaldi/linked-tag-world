@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block header %}Create new LTW app{% endblock %}
+{% block header %}Visualize and enrich your data{% endblock %}
 
-{% block title %}Step 3 <small>Visualize and enrich your data</small>{% endblock %}
+{% block title %}{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -26,7 +26,7 @@
             <div class="tab-pane{% if loop.index0 == 0 %} active{% endif %}" id="content_tab_{{ paginator.id }}">
               <div><ul id="pagination_{{ loop.index0|string }}" class="pagination"></ul></div>
               <div id="data_tabs_{{ loop.index0|string }}">
-                {{ macros.data_tabs(paginator.data, paginator.id) }}
+                {{ macros.data_tabs(paginator.data, paginator.id, app_id) }}
               </div>
             </div>
           {% endfor %}

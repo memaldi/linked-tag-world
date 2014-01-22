@@ -90,7 +90,7 @@
 {% endmacro %}
 
 
-{% macro data_tabs(data_dict, id) %}
+{% macro data_tabs(data_dict, id, app_id) %}
   <div class="panel-group" id="accordion">
     {% for s, data in data_dict.items() %}
         <p>
@@ -102,7 +102,7 @@
               <div class="media-body">
                 <p><h4 class="media-heading">{% if data_dict[s].main %} {{ data_dict[s].main }} <small>{{ s }}</small> {% else %} {{ s }} {% endif %}</h4></p>
                 <a class="btn btn-primary btn-sm" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">More</a>
-                <a class="btn btn-primary btn-sm" href="{{ url_for('edit_resource', url=s) }}">Edit & enrich!</a>
+                <a class="btn btn-primary btn-sm" href="{{ url_for('edit_resource', app_id=app_id, url=s) }}">Edit & enrich!</a>
               </div>
             </div>
 

@@ -142,7 +142,7 @@ def rdfsource():
     if request.method == 'POST' and len(request.form.keys()) > 0:
         ltwapp = App.query.filter_by(id=session['app']).first()
 
-        config_form = MyHiddenForm()
+        config_form = MyHiddenForm(prefix='config')
 
         if request.form.keys()[0].startswith('rdf-') and rdf_form.validate_on_submit():
             rdf_file = request.files[rdf_form.rdf_file.name]
@@ -176,58 +176,59 @@ def rdfsource():
 @app.route('/newapp/rdfsource/step2', methods=['GET', 'POST'])
 @login_required
 def rdfsource_step2():
-    config_form = MyHiddenForm()
-
-    if config_form.validate_on_submit():
-        config_file = json.loads(get_task_status(task_id=config_form.hidden_field.data, return_result=True))['result']
-
-        config_edit_form = ConfigEditForm()
-        config_edit_form.config_file.data = config_file
-
-        ltwapp = App.query.filter_by(id=session['app']).first()
-        ltwapp.config_file = config_file
-        db.session.commit()
-
-        return render_template('rdf_step2.html', form=config_edit_form)
-
-
-@app.route('/newapp/rdfsource/step3', methods=['GET', 'POST'])
-@login_required
-def rdfsource_step3():
-    config_form = ConfigEditForm()
-    config_file = config_form.config_file.data
+    config_form = MyHiddenForm(prefix='config')
+    config_edit_form = ConfigEditForm(prefix='editconfig')
 
     ltwapp = App.query.filter_by(id=session['app']).first()
 
-    if config_form.validate_on_submit():
-        ltwapp.config_file = config_file
-        db.session.commit()
+    if request.method == 'POST' and len(request.form.keys()) > 0:
+        if request.form.keys()[0].startswith('config-') and config_form.validate_on_submit():
+            config_file = json.loads(get_task_status(task_id=config_form.hidden_field.data, return_result=True))['result']
 
-        if config_form.download_next.data == 'download':
-            return download_config_file(config_file=config_file)
-        else:
-            t = call_to_get_all_data(ltwapp, get_all_data)
-            data_form = MyHiddenForm()
-            return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
-
-    elif not config_file:
-        # Data fetching task completed
-        data_form = MyHiddenForm()
-        if data_form.validate_on_submit():
-            graph_id = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
-            ltwapp.graph_id = graph_id
+            config_edit_form.config_file.data = config_file
+            ltwapp.config_file = config_file
             db.session.commit()
 
-            paginators = get_data_paginators(graph_id)
-            return render_template('rdf_step3.html', paginators=paginators)
-    else:
-        return render_template('rdf_step2.html', config_file=config_file, form=config_form)
+            return render_template('rdf_step2.html', form=config_edit_form, app_id=session['app'])
+
+        elif request.form.keys()[0].startswith('editconfig-'):
+            if config_edit_form.validate_on_submit():
+                config_file = config_edit_form.config_file.data
+                ltwapp.config_file = config_file
+                db.session.commit()
+
+                if config_edit_form.download_next.data == 'download':
+                    return download_config_file(config_file=config_file)
+                else:
+                    return redirect(url_for('rdfsource_step3', app_id=session['app']))
+    return render_template('rdf_step2.html', form=config_edit_form, app_id=session['app'])
 
 
-@app.route('/newapp/rdfsource/step3/edit/<path:url>', methods=['GET'])
+@app.route('/ltwapp/<app_id>/data', methods=['GET', 'POST'])
 @login_required
-def edit_resource(url):
-    ltwapp = App.query.filter_by(id=session['app']).first()
+def rdfsource_step3(app_id):
+    data_form = MyHiddenForm()
+    ltwapp = App.query.filter_by(id=app_id).first()
+
+    if data_form.validate_on_submit():
+        # Data fetching task completed
+        graph_id = json.loads(get_task_status(task_id=data_form.hidden_field.data, return_result=True))['result']
+        ltwapp.graph_id = graph_id
+        db.session.commit()
+
+        paginators = get_data_paginators(graph_id)
+        return render_template('rdf_step3.html', paginators=paginators, app_id=app_id)
+    else:
+        # Start data fetching task
+        t = call_to_get_all_data(ltwapp, get_all_data)
+        data_form = MyHiddenForm()
+        return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form, app_id=app_id)
+
+
+@app.route('/ltwapp/<app_id>/data/edit/<path:url>', methods=['GET'])
+@login_required
+def edit_resource(app_id, url):
+    ltwapp = App.query.filter_by(id=app_id).first()
     graph_id = ltwapp.graph_id
 
     if graph_id:
@@ -358,13 +359,17 @@ def edit_data(app_id):
 
     session['app'] = app_id
 
+    print ltwapp
+    print ltwapp.graph_id
+
     if ltwapp.graph_id:
         paginators = get_data_paginators(ltwapp.graph_id)
         return render_template('rdf_step3.html', paginators=paginators)
     else:
-        t = call_to_get_all_data(ltwapp, get_all_data)
-        data_form = MyHiddenForm()
-        return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form)
+        return redirect(url_for('rdfsource_step3', app_id=app_id))
+        # t = call_to_get_all_data(ltwapp, get_all_data)
+        # data_form = MyHiddenForm()
+        # return render_template('rdf_step3_a.html', task_id=t.task_id, form=data_form, app_id=app_id)
 
 
 @app.route('/ltwapp/<app_id>/config/reload')
@@ -378,5 +383,5 @@ def reload_config_file(app_id):
 
     t = call_to_generate_config_file(ltwapp, generate_config_file)
 
-    config_form = MyHiddenForm()
+    config_form = MyHiddenForm(prefix='config')
     return render_template('rdf_step1_a.html', data_source='rdf' if ltwapp.rdf_file else 'sparql', task_id=t.task_id, form=config_form)

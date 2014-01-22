@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 
-{% block header %}Create new LTW app{% endblock %}
-
-{% block title %}Step 3 <small>Visualize and enrich your data</small>{% endblock %}
+{% block header %}Visualize and enrich your data{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -22,7 +20,7 @@
     </div>
   </div>
 </div>
-<form method="POST" action="{{ url_for('rdfsource_step3') }}" id="dataform">
+<form method="POST" action="{{ url_for('rdfsource_step3', app_id=app_id) }}" id="dataform">
   {{ form.csrf_token }}
   {{ form.hidden_field }}
 </form>
