@@ -12,7 +12,7 @@
         <h3 class="panel-title">Edit and enrich the data</h3>
       </div>
       <div class="panel-body">
-        <ul class="nav nav-pills">
+        <ul class="nav nav-pills" id="class_tabs">
           {% for class_uri, paginator in paginators.items() %}
             <li class="{% if loop.index0 == 0 %}active{% endif %}">
               <a href="#content_tab_{{ paginator.id }}" data-toggle="tab">
@@ -39,7 +39,21 @@
 
 {% block scripts %}
   <script src="{{ url_for('static', filename='js/bootstrap-paginator.min.js') }}"></script>
-  <script>
+  <script src="{{ url_for('static', filename='js/jquery.lazyload.min.js') }}"></script>
+  <script type="text/javascript">
+    // $(function() {
+    //   $("img.lazy").lazyload({
+    //       event : "sporty"
+    //   });
+    //   $('#class_tabs a').click(function (e) {
+    //     $("img.lazy").trigger("sporty")
+    //   })
+    // });
+    $(function() {
+        $("img.lazy").lazyload();
+    });
+  </script>
+  <script type="text/javascript">
     {% for class_uri, paginator in paginators.items() %}
       var options_{{ loop.index0|string }} = {
           bootstrapMajorVersion: 3,

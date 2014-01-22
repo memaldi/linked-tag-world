@@ -90,14 +90,18 @@
 {% endmacro %}
 
 
-{% macro data_tabs(data_dict, id, app_id) %}
+{% macro data_tabs(data_dict, id, app_id, pagination) %}
   <div class="panel-group" id="accordion">
     {% for s, data in data_dict.items() %}
         <p>
           <div class="panel panel-primary">
             <div class="media">
               <a class="pull-left" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">
-                <img class="media-object" style="width: 80px;" src="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
+                {% if not pagination %}
+                  <img class="media-object lazy" width="80" data-original="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
+                {% else %}
+                  <img class="media-object" width="80" src="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
+                {% endif %}
               </a>
               <div class="media-body">
                 <p><h4 class="media-heading">{% if data_dict[s].main %} {{ data_dict[s].main }} <small>{{ s }}</small> {% else %} {{ s }} {% endif %}</h4></p>

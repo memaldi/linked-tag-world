@@ -125,8 +125,6 @@ def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
         ltwapp = App.query.filter_by(id=session['app']).first()
         graph_id = ltwapp.graph_id
 
-    print graph_id
-
     return {'triples': data_list, 'main': main, 'img': img, 'linkable': linkable, 'ltwuri': get_ltw_uri(s, graph_id)}
 
 

@@ -285,9 +285,9 @@ def get_next_page():
 
     template = app.jinja_env.from_string('''
         {% import 'macros.html' as macros %}
-        {{ macros.data_tabs(data, class_id) }}
+        {{ macros.data_tabs(data, class_id, app_id, pagination) }}
         ''')
-    html = template.render(data=data, class_id=class_id)
+    html = template.render(data=data, class_id=class_id, app_id=session['app'], pagination=True)
 
     return json.dumps({'html': html})
 
@@ -364,7 +364,7 @@ def edit_data(app_id):
 
     if ltwapp.graph_id:
         paginators = get_data_paginators(ltwapp.graph_id)
-        return render_template('rdf_step3.html', paginators=paginators)
+        return render_template('rdf_step3.html', paginators=paginators, app_id=app_id)
     else:
         return redirect(url_for('rdfsource_step3', app_id=app_id))
         # t = call_to_get_all_data(ltwapp, get_all_data)
