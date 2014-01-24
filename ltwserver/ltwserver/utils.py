@@ -247,8 +247,8 @@ def call_to_generate_config_file(ltwapp, task):
         data_source='rdf' if rdf_data else 'sparql',
         rdf_data=rdf_data,
         rdf_format=ltwapp.rdf_file_format,
-        sparql_url=ltwapp.endpoint.url,
-        sparql_graph=ltwapp.endpoint.graph
+        sparql_url=ltwapp.endpoint.url if ltwapp.endpoint else None,
+        sparql_graph=ltwapp.endpoint.graph if ltwapp.endpoint else None
     )
     return t
 
@@ -265,8 +265,8 @@ def call_to_get_all_data(ltwapp, task):
         config_file=ltwapp.config_file,
         rdf_data=rdf_data,
         rdf_format=ltwapp.rdf_file_format,
-        sparql_url=ltwapp.endpoint.url,
-        sparql_graph=ltwapp.endpoint.graph
+        sparql_url=ltwapp.endpoint.url if ltwapp.endpoint else None,
+        sparql_graph=ltwapp.endpoint.graph if ltwapp.endpoint else None
     )
     return t
 

@@ -242,4 +242,7 @@ def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_gr
     for stmt in data_q_res:
         counter.value += prog_per_iteration
         if str(stmt[1]) in props:
-            ltw_data_graph.add(stmt)
+            try:
+                ltw_data_graph.add(stmt)
+            except:
+                pass

@@ -13,14 +13,14 @@
       </div>
       <div class="panel-body">
         {% if apps %}
-          <table class="table table-hover">
+          <table class="table table-hover centered">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Config file</th>
-                <th>APK</th>
-                <th>Data</th>
-                <th>Delete</th>
+                <th class="centered">Name</th>
+                <th class="centered">Config file</th>
+                <th class="centered">APK</th>
+                <th class="centered">Data</th>
+                <th class="centered">Delete</th>
               </tr>
             </thead>
             <tbody>
@@ -56,7 +56,7 @@
       </div>
       <div class="panel-body">
         <p><a href="{{ url_for('configure') }}">Click here</a> to create a LTW app!</p>
-        <p>You can find documentation on how to create your apps here.</p>
+        <p>You can find documentation on how to create your apps <a href="#">here</a>.</p>
       </div>
     </div>
   </div>

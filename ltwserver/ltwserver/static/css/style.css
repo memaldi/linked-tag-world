@@ -71,3 +71,7 @@ pre.prettyprint {
     background-image: -o-linear-gradient(left, transparent, rgba(0, 0, 0, .2), transparent);
     border: 0;
 }
+
+.centered {
+   text-align: center;
+}
