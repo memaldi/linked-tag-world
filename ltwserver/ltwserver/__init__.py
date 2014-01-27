@@ -33,8 +33,8 @@ login_manager.login_view = 'index'
 login_manager.login_message_category = 'info'
 
 # Replace the app's session handling with Flask-KVSession
-store = DictStore()
-KVSessionExtension(store, app)
+# store = DictStore()
+# KVSessionExtension(store, app)
 
 # Load models and views
 import ltwserver.models

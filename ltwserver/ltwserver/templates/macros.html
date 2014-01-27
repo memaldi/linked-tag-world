@@ -44,6 +44,16 @@
 {% endmacro %}
 
 
+{% macro form_field_with_popup(text_size, field_size, field, field_id) %}
+  <label for={{ field_id }} class="col-lg-{{ text_size }} control-label {% if field.errors %}text-danger{% endif %}">
+    <a id="pop_{{ field_id }}">{{ field.label }}{% if field.flags.required %}*{% endif %}</a>
+  </label>
+  <div class="col-lg-{{ field_size }} {% if field.errors %}has-error{% endif %}">
+    {{ field(id=field_id, class="form-control", **kwargs) }}
+  </div>
+{% endmacro %}
+
+
 {% macro task_status_bar(task_id, progress_msg_id, progress_bar_id, interval=500, on_success=None, on_error=None) %}
  <script type="text/javascript">
   $(document).ready(function() {
@@ -132,4 +142,18 @@
       <!--/div-->
     {% endfor %}
   </div>
+{% endmacro %}
+
+{% macro triples_table(uri, triples) %}
+  <table class="table table-condensed">
+    <tbody>
+      {% for triple in triples %}
+        <tr>
+          <td>{{ triple.p }}</td>
+          <td>{{ triple.o }}{% if triple.lang %} @ {{ triple.lang }}{% endif %}</td>
+          <td><button type="button" class="btn btn-primary btn-sm" onclick="addTriple(this, '{{ uri|urlencode }}', '{{ triple.p|urlencode }}', '{{ triple.o|urlencode }}')">Add triple</button></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 {% endmacro %}

@@ -66,3 +66,6 @@ class RegisterForm(Form):
 class AppNameForm(Form):
     name = TextField('App name', validators=[DataRequired()])
     data_source = HiddenField(validators=[DataRequired()])
+
+class ResourceEditForm(Form):
+    pass

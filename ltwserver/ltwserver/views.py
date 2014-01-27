@@ -11,10 +11,12 @@
 
 from ltwserver import app, celery, login_manager
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm, LoginForm, \
-    RegisterForm, AppNameForm
+    RegisterForm, AppNameForm, ResourceEditForm
+from wtforms.fields import TextField
 from ltwserver.utils import get_resource_triples, get_next_resources, get_ltw_data_graph, get_ltw_config_graph, \
     search_dbpedia_trough_wikipedia, request_wants_rdf, call_to_generate_config_file, \
-    call_to_get_all_data, get_data_paginators, SUPPORTED_RDF_HEADERS
+    call_to_get_all_data, get_data_paginators, get_literal_and_lang, get_dbpedia_resource_triples, \
+    SUPPORTED_RDF_HEADERS
 from ltwserver.models import db, User, App, Endpoint
 from ltwserver.tasks import generate_config_file, get_all_data
 
@@ -24,9 +26,10 @@ from flask import session, request, redirect, url_for, render_template, make_res
 from celery.result import AsyncResult
 from StringIO import StringIO
 
-from rdflib import Graph, URIRef
+from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF
 
+import urllib
 import json
 import uuid
 import os
@@ -226,24 +229,68 @@ def rdfsource_step3(app_id):
         return render_template('data_fetching.html', task_id=t.task_id, form=data_form, app_id=app_id)
 
 
-@app.route('/ltwapp/<app_id>/data/edit/<path:url>', methods=['GET'])
+@app.route('/ltwapp/<app_id>/data/edit/<path:url>', methods=['GET', 'POST'])
 @login_required
 def edit_resource(app_id, url):
     ltwapp = App.query.filter_by(id=app_id).first()
     graph_id = ltwapp.graph_id
 
-    if graph_id:
-        data_graph = get_ltw_data_graph(graph_id)
-        config_graph = get_ltw_config_graph(graph_id)
-        class_uri = list(data_graph.objects(URIRef(url), RDF.type))[0]
+    data_graph = get_ltw_data_graph(graph_id)
+    config_graph = get_ltw_config_graph(graph_id)
+    class_uri = list(data_graph.objects(URIRef(url), RDF.type))[0]
 
-        res_data = get_resource_triples(data_graph, config_graph, str(class_uri), url)
+    res_data = get_resource_triples(data_graph, config_graph, str(class_uri), url)
+
+    i = -1
+
+    for i, triple in enumerate(sorted(res_data['triples'])):
+        if triple[1].language:
+            default_txt = u'%s @ %s' % (unicode(triple[1]), triple[1].language)
+        else:
+            default_txt = triple[1]
+        setattr(ResourceEditForm, 'field' + str(i), TextField(triple[2], default=default_txt, description=triple[0]))
+
+    number_of_fields = i + 1 # +1 because i starts on 0
+    form = ResourceEditForm()
+
+    if form.validate_on_submit():
+        for i, triple in enumerate(sorted(res_data['triples'])):
+            data_graph.remove( (URIRef(url), triple[0], triple[1]) )
+
+            field_data, lang = get_literal_and_lang(getattr(form, 'field' + str(i)).data)
+
+            if field_data:
+                data_graph.add( (URIRef(url), triple[0], Literal(field_data, lang=lang)) )
+
+        if len(request.form.keys()) - 1 > number_of_fields: # -1 because CSRF token is included in form keys
+            number_of_new_fields = (len(request.form.keys()) - 1 - number_of_fields) / 2
+            for i in range(number_of_fields + 1, number_of_fields + 1 + number_of_new_fields):
+                p = request.form['field%s_p' % str(i)]
+                o = request.form['field%s_o' % str(i)]
+                if p and o:
+                    if o.startswith('http://'):
+                        data_graph.add( (URIRef(url), URIRef(p), URIRef(o)) )
+                    else:
+                        o, lang = get_literal_and_lang(o)
+                        data_graph.add( (URIRef(url), URIRef(p), Literal(o, lang=lang)) )
+
+        return redirect(url_for('edit_resource', app_id=app_id, url=url))
+    else:
+        linked_resources = []
+        resources = {}
 
         for link in res_data['linkable']:
             for o in data_graph.objects(URIRef(url), URIRef(link)):
-                print search_dbpedia_trough_wikipedia(str(o.encode('utf-8')), 'eu')
+                if str(o.encode('utf-8')) not in linked_resources:
+                    linked_resources.append(str(o.encode('utf-8')))
+                    lang = o.language if o.language else 'en'
+                    if lang not in resources:
+                        resources[lang] = []
+                    for resource in search_dbpedia_trough_wikipedia(str(o.encode('utf-8')), lang):
+                        resources[lang].append(resource)
 
-        return render_template('edit_resource.html', data=res_data, url=url)
+        return render_template('edit_resource.html', data=res_data, app_id=app_id, url=url, resources=resources,
+            form=form, number_of_fields=number_of_fields)
 
 
 @app.route('/newapp/nonrdfsource/', methods=['GET', 'POST'])
@@ -291,6 +338,38 @@ def get_next_page():
     html = template.render(data=data, class_id=class_id, app_id=session['app'], pagination=True)
 
     return json.dumps({'html': html})
+
+
+@app.route('/_get_uri_triples')
+@login_required
+def get_uri_triples():
+    uri = request.args.get('uri', None, type=str)
+    dbpedia_uri = request.args.get('dbpedia_uri', None, type=str)
+    lang = request.args.get('lang', None, type=str)
+
+    template = app.jinja_env.from_string('''
+        {% import 'macros.html' as macros %}
+        {{ macros.triples_table(uri, triples) }}
+        ''')
+    html = template.render(uri=urllib.unquote(uri), triples=get_dbpedia_resource_triples(urllib.unquote(dbpedia_uri), lang))
+
+    return json.dumps({'html': html})
+
+
+@app.route('/_add_external_triples')
+@login_required
+def add_external_triples():
+    s = request.args.get('s', None, type=str)
+    p = request.args.get('p', None, type=str)
+    o = request.args.get('o', None, type=str)
+
+    o, lang = get_literal_and_lang(urllib.unquote(o))
+
+    ltwapp = App.query.filter_by(id=session['app']).first()
+    data_graph = get_ltw_data_graph(ltwapp.graph_id)
+    data_graph.add( (URIRef(urllib.unquote(s)), URIRef(urllib.unquote(p)), Literal(o, lang=lang)) )
+
+    return json.dumps({})
 
 
 @app.route('/res/<graph_id>/<path:url>')

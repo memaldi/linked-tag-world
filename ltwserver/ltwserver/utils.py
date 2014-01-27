@@ -5,7 +5,7 @@ from flask import request, session
 
 from ltwserver.models import App
 
-from rdflib import ConjunctiveGraph, URIRef, Namespace
+from rdflib import ConjunctiveGraph, URIRef, Namespace, Literal
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
 from rdflib.namespace import RDF
@@ -115,7 +115,7 @@ def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
             if str(p) in main_props:
                 main = o
             elif str(p) in IMG_PROPS:
-                img = o
+                img = (p, o)
             if str(p) in linkable_props:
                 linkable.append(str(p))
 
@@ -203,11 +203,40 @@ def get_dbpedia_uri(term, lang):
     Get the corresponding DBpedia URI from a wikipedia term (taking in account the language of the term)
     """
 
-    DBPEDIA_RESOURCE_URI = 'dbpedia.org/resource/'
+    DBPEDIA_RESOURCE_URI = u'dbpedia.org/resource/'
     if lang == 'en':
-        return 'http://%s%s' % (DBPEDIA_RESOURCE_URI, str(term))
+        return u'http://%s%s' % (DBPEDIA_RESOURCE_URI, term)
     else:
-        return 'http://%s.%s%s' % (lang, DBPEDIA_RESOURCE_URI, str(term))
+        return u'http://%s.%s%s' % (lang, DBPEDIA_RESOURCE_URI, term)
+
+
+def get_dbpedia_endpoint(lang):
+    """
+    Get the corresponding DBpedia SPARQL endpoint for a language
+    """
+
+    DBPEDIA_SPARQL_URL = u'dbpedia.org/sparql'
+    if lang == 'en':
+        return u'http://%s' % DBPEDIA_SPARQL_URL
+    else:
+        return u'http://%s.%s' % (lang, DBPEDIA_SPARQL_URL)
+
+
+def get_dbpedia_resource_triples(uri, lang):
+    g = ConjunctiveGraph('SPARQLStore')
+    g.open(get_dbpedia_endpoint(lang))
+
+    triples = []
+
+    for p, o in g.predicate_objects(URIRef(uri)):
+        if isinstance(o, Literal):
+            triples.append({
+                'p': unicode(p),
+                'o': unicode(o),
+                'lang': o.language
+                })
+
+    return triples
 
 
 def search_dbpedia_trough_wikipedia(literal, lang='en'):
@@ -215,14 +244,13 @@ def search_dbpedia_trough_wikipedia(literal, lang='en'):
     Search a literal in Wikipedia (taking in account the language of the literal) and return a list of related DBpedia resources
     """
 
-    ret = {}
-    ret[literal] = []
+    ret = []
     wikipedia.set_lang(lang)
     for term in wikipedia.search(str(literal)):
-        summary = wikipedia.summary(term, sentences=1)
+        #summary = wikipedia.summary(term, sentences=1)
         #imgs = wikipedia.page(term).images
-        term = term.encode('utf-8').replace(' ', '_')
-        ret[literal].append( (get_dbpedia_uri(term, lang), summary) )
+        t = unicode(term).replace(' ', '_')
+        ret.append(( term, get_dbpedia_uri(t, lang) ))
     return ret
 
 
@@ -284,3 +312,10 @@ def get_data_paginators(graph_id):
 
     return paginators
 
+def get_literal_and_lang(field_data):
+    lang = None
+    if len(field_data.split(' @ ')) > 0 and len(field_data.split(' @ ')[-1]) == 2:
+        lang = field_data.split(' @ ')[-1]
+        field_data = field_data[:field_data.rfind(' @ ')]
+
+    return field_data, lang

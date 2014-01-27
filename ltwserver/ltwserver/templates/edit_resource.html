@@ -14,7 +14,7 @@
       <div class="panel-body">
         <div class="col-md-2">
           {% if data.img %}
-            <p><img class="img-thumbnail col-md-12" src="{{ data.img }}"></p>
+            <p><img class="img-thumbnail col-md-12" src="{{ data.img[1] }}"></p>
           {% endif %}
           <img class="img-thumbnail col-md-12" src="{{ url_for('qr_route', url=data.ltwuri, size=4) }}">
         </div>
@@ -31,27 +31,20 @@
           <br />
           <div class="tab-content">
             <div class="tab-pane active" id="edit">
-
-              <form class="form-horizontal" role="form">
-                {% for triple in data.triples %}
-                  {% if triple[1].startswith('http://') %}
-                    <div class="form-group">
-                      <label class="col-sm-2 control-label"><a id="pop_{{ loop.index0|string }}">{{ triple[2] }}</a></label>
-                      <div class="col-sm-10">
-                        <input type="text" class="form-control" value="{{ triple[1] }}" disabled>
+              <form class="form-horizontal" id="editform" action="{{ url_for('edit_resource', app_id=app_id, url=url) }}" method="POST">
+                {{ form.csrf_token }}
+                {% for field in form %}
+                  {% if field != form.csrf_token %}
+                      <div class="form-group">
+                        {{ macros.form_field_with_popup(4, 8, field, loop.index0|string) }}
                       </div>
-                    </div>
-                  {% else %}
-                    <div class="form-group">
-                      <label class="col-sm-2 control-label"><a id="pop_{{ loop.index0|string }}">{{ triple[2] }}</a></label>
-                      <div class="col-sm-10">
-                        <input type="text" class="form-control" value="{{ triple[1] }}">
-                      </div>
-                    </div>
                   {% endif %}
                 {% endfor %}
+
+                <div id="extrafields"></div>
                 <div class="form-group">
                   <div class="col-sm-offset-2 col-sm-10">
+                    <a class="btn btn-default" onclick="addTextfield()">Add field</a>
                     <button type="submit" class="btn btn-default">Save</button>
                   </div>
                 </div>
@@ -59,7 +52,56 @@
             </div>
 
             <div class="tab-pane" id="enrich">
-              YEAH
+              <div class="panel-group" id="accordion">
+                <div class="row">
+                  {% for lang in resources %}
+                    <div class="col-md-6">
+                      <div class="panel panel-default">
+                        <div class="panel-heading">
+                          <h3 class="panel-title">{{ lang }}</h3>
+                        </div>
+                        <div class="panel-body">
+                          {% for resource in resources[lang] %}
+                              <p>
+                                <div class="panel panel-primary">
+                                  <div class="centered">
+                                    <h4>{{ resource[0] }}</h4>
+                                    <h4><small><a href="{{ resource[1] }}" target="_blank">{{ resource[1] }}</a></small></h4>
+                                    <p>
+                                      <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modal_{{ lang }}_{{ loop.index0|string }}">View / add triples</button>
+                                    </p>
+                                  </div>
+
+                                  <!-- Modal -->
+                                  <div class="modal fade" id="modal_{{ lang }}_{{ loop.index0|string }}" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                      <div class="modal-content">
+                                        <div class="modal-header">
+                                          <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                                          <h4 class="modal-title" id="myModalLabel">Selecting triples from {{ resource[1] }}</h4>
+                                        </div>
+                                        <div class="modal-body">
+                                          <div id="triples_{{ lang }}_{{ loop.index0|string }}"></div>
+                                        </div>
+                                        <div class="modal-footer">
+                                          <button type="button" class="btn btn-default btn-sm" data-dismiss="modal">Close</button>
+                                        </div>
+                                      </div><!-- /.modal-content -->
+                                    </div><!-- /.modal-dialog -->
+                                  </div><!-- /.modal -->
+
+                                </div>
+                              </p>
+                              <!--div class="panel panel-default"-->
+
+                            <!--/div-->
+                          {% endfor %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
 
           </div>
@@ -72,12 +114,68 @@
 
 {% block scripts %}
 <script type="text/javascript">
-{% for triple in data.triples %}
-    $('#pop_{{ loop.index0|string }}').popover({
-           content: '{{ triple[0] }}',
-           placement: 'top',
-           trigger: 'hover'
-    });
-{% endfor %}
+  {% for field in form %}
+    {% if field != form.csrf_token %}
+      $('#pop_{{ loop.index0|string }}').popover({
+       content: '{{ field.description }}',
+       placement: 'top',
+       trigger: 'hover'
+      });
+    {% endif %}
+  {% endfor %}
+
+  {% for lang in resources %}
+    {% for resource in resources[lang] %}
+      $('#modal_{{ lang }}_{{ loop.index0|string }}').on('show.bs.modal', function (e) {
+        $.getJSON('/_get_uri_triples',
+            {
+              uri: "{{ url|urlencode }}",
+              dbpedia_uri: "{{ resource[1]|urlencode }}",
+              lang: "{{ lang }}"
+            },
+            function(data) {
+              $("#triples_{{ lang }}_{{ loop.index0|string }}").append(data['html']);
+            });
+      });
+    {% endfor %}
+  {% endfor %}
+</script>
+
+<script type="text/javascript">
+  var fieldNumber = {{ number_of_fields }};
+  function addTextfield() {
+    fieldNumber++;
+    var html_fields = '<div class="form-group" id="field_' + fieldNumber + '"> \
+        <div class="col-lg-4"> \
+          <input class="form-control" id="field' + fieldNumber + '_p" name="field' + fieldNumber + '_p" type="text" placeholder="Property URL"> \
+        </div> \
+        <div class="col-lg-7"> \
+          <input class="form-control" id="field' + fieldNumber + '_o" name="field' + fieldNumber + '_o" type="text" placeholder="Value"> \
+        </div> \
+        <div class="col-lg-1"> \
+          <a class="btn btn-default" onclick="deleteTextfield(' + fieldNumber + ')">-</a> \
+        </div> \
+      </div>';
+
+    $("#extrafields").append(html_fields);
+  }
+
+  function deleteTextfield(number) {
+    $("#field_" + number).remove();
+    fieldNumber--;
+  }
+
+  function addTriple(e, s, p, o) {
+    $(e).attr('value', 'Saving...');
+    $.getJSON('/_add_external_triples',
+        {
+          s: s,
+          p: p,
+          o: o
+        },
+        function(data) {
+          $(e).attr('value', 'Done!');
+        });
+  }
 </script>
 {% endblock %}
