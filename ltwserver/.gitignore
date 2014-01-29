@@ -36,3 +36,5 @@ coverage.xml
 ltwserver/uploads/*
 
 *.db
+
+*.zip
