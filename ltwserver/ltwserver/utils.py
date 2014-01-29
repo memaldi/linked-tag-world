@@ -12,9 +12,10 @@ from rdflib.namespace import RDF
 
 import wikipedia
 import re
+import os
 
 PER_PAGE = app.config['PAGINATION_PER_PAGE']
-IMG_PROPS = ['http://xmlns.com/foaf/0.1/depiction']
+IMG_PROPS = app.config['IMG_PROPS']
 SUPPORTED_RDF_HEADERS = {
     'application/rdf+xml': 'xml',
     'text/turtle': 'turtle',
@@ -111,7 +112,7 @@ def get_resource_triples(data_graph, config_graph, class_uri, s, graph_id=None):
     linkable = []
     for p, o in data_graph.predicate_objects(URIRef(s)):
         if str(p) != str(RDF.type):
-            label = property_labels[str(p)] if str(p) in property_labels else str(p)
+            label = property_labels[str(p)] if str(p) in property_labels else re.split('/|#', p)[-1]
             if str(p) in main_props:
                 main = o
             elif str(p) in IMG_PROPS:
@@ -180,6 +181,7 @@ def get_ltw_data_graph(graph_id=None):
 
 
 def get_ltw_config_graph(graph_id=None):
+    print graph_id
     if not graph_id:
         ltwapp = App.query.filter_by(id=session['app']).first()
         graph_id = ltwapp.graph_id
@@ -319,3 +321,12 @@ def get_literal_and_lang(field_data):
         field_data = field_data[:field_data.rfind(' @ ')]
 
     return field_data, lang
+
+def zip_dir(path, zp, exclude):
+    assert os.path.isdir(path)
+    for root, dirs, files in os.walk(path):
+        for fn in files:
+            if fn not in exclude:
+                absfn = os.path.join(root, fn)
+                zfn = absfn[len(path)+len(os.sep)-1:] #XXX: relative path
+                zp.write(absfn, zfn)

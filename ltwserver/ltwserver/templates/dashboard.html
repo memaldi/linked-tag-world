@@ -32,9 +32,10 @@
                   </td>
                   <td>
                     {% if ltwapp.apk %}
-                      <a href="{{ url_for('dashboard') }}"><span class="glyphicon glyphicon-download"></span></a>
+                      {# <a href="{{ url_for('dashboard') }}"><span class="glyphicon glyphicon-download"></span></a> #}
+                      <a href="{{ url_for('generate_android_app',  app_id=ltwapp.id) }}">Generate the Android app</a>
                     {% else %}
-                      <a href="{{ url_for('dashboard') }}">Generate the Android app</a>
+                      <a href="{{ url_for('generate_android_app',  app_id=ltwapp.id) }}">Generate the Android app</a>
                     {% endif %}
                   </td>
                   <td><a href="{{ url_for('edit_data', app_id=ltwapp.id) }}">Edit & enrich your data</a></td>

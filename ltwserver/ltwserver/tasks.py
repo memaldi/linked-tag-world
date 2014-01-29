@@ -1,20 +1,26 @@
 # coding=utf-8
 
-from ltwserver import celery
-from ltwserver.utils import get_props_by_class_ont
+from ltwserver import app, celery
+from ltwserver.utils import get_props_by_class_ont, IMG_PROPS
 
 from celery import current_task
-from rdflib import Graph, ConjunctiveGraph, Namespace, BNode
-from rdflib.namespace import RDF, RDFS, FOAF, SKOS
-from rdflib.term import URIRef, Literal
+from jinja2 import Environment, PackageLoader
+
+from rdflib import Graph, ConjunctiveGraph, Namespace, BNode, URIRef, Literal
+from rdflib.namespace import RDF
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
+
 from multiprocessing import Pool, Value
 from itertools import repeat
+from time import sleep
+import subprocess
 
 import re
 import uuid
-from time import sleep
+import shutil
+import os
+import sys
 
 
 # Define RDFlib namespaces
@@ -22,7 +28,14 @@ LTW = Namespace('http://helheim.deusto.es/ltw/0.1#')
 DC = Namespace('http://purl.org/dc/elements/1.1/')
 
 # Properties that are used usually as labels in RDF data
-COMMON_LABEL_PROPS = [RDFS.label, DC.name, FOAF.name, SKOS.prefLabel]
+COMMON_LABEL_PROPS = [URIRef(label) for label in app.config['COMMON_LABEL_PROPS']]
+
+ANDROID_BIN = app.config['ANDROID_BIN']
+LTW_ANDROID_LIB_PATH = app.config['LTW_ANDROID_LIB_PATH']
+BASE_APP_PATH = app.config['BASE_APP_PATH']
+NEW_APPS_PATH = app.config['NEW_APPS_PATH']
+NUM_OF_PROCESS_MSGS = 262
+
 
 @celery.task()
 def make_omelette(data_source, rdf_data=None, rdf_format=None, sparql_url=None, sparql_graph=None):
@@ -246,3 +259,158 @@ def fetch_and_save_by_class_ont(class_ont, config_graph, data_graph, ltw_data_gr
                 ltw_data_graph.add(stmt)
             except:
                 pass
+
+
+@celery.task()
+def generate_new_android_app(app_name, package, config_file, graph_id=None, logo=None, icon=None):
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 5, 'progress_msg': 'Creating app structure...'})
+
+    config_graph = Graph()
+    config_graph.parse(format='turtle', data=config_file)
+
+    if not graph_id:
+        graph_id = uuid.uuid4()
+
+    lib_path = LTW_ANDROID_LIB_PATH if LTW_ANDROID_LIB_PATH.endswith('/') else LTW_ANDROID_LIB_PATH + '/'
+
+    # Copy base app to new app path
+    app_path = '%s%s/%s/' if NEW_APPS_PATH.endswith('/') else '%s/%s/%s/'
+    app_path = app_path % ( NEW_APPS_PATH, graph_id, app_name.replace(' ', '_').lower())
+    try:
+        shutil.copytree(BASE_APP_PATH, app_path)
+    except OSError:
+        shutil.rmtree(app_path)
+        shutil.copytree(BASE_APP_PATH, app_path)
+
+    # Create source folders (based on package)
+    shutil.move(app_path + 'src/package/', '%ssrc/%s/' % ( app_path, package.replace('.', '/') ))
+
+    # Remove unnecesary files
+    os.remove(app_path + 'src/%s/model/model_template.java' % package.replace('.', '/'))
+    os.remove(app_path + 'res/layout/model_layout.xml')
+
+    # Create Jinja environment
+    env = Environment(loader=PackageLoader('ltwserver', 'android_app_base'))
+
+    # Edit AndroidManifest.xml
+    template = env.get_template('AndroidManifest.xml')
+    with open(app_path + 'AndroidManifest.xml', 'w') as f:
+        f.write(template.render(package=package))
+
+    # Edit res/values/strings.xml
+    template = env.get_template('res/values/strings.xml')
+    with open(app_path + 'res/values/strings.xml', 'w') as f:
+        f.write(template.render(app_name=app_name).encode('utf-8'))
+
+    # Edit res/layout/activity_main.xml
+    template = env.get_template('res/layout/activity_main.xml')
+    with open(app_path + 'res/layout/activity_main.xml', 'w') as f:
+        f.write(template.render(logo=logo).encode('utf-8'))
+
+    # Edit src/pkg/BarcodeActivity.java
+    template = env.get_template('src/package/BarcodeActivity.java')
+    with open(app_path + 'src/%s/BarcodeActivity.java' % package.replace('.', '/'), 'w') as f:
+        f.write(template.render(package=package).encode('utf-8'))
+
+    # Edit src/pkg/DataActivity.java
+    template = env.get_template('src/package/DataActivity.java')
+    with open(app_path + 'src/%s/DataActivity.java' % package.replace('.', '/'), 'w') as f:
+        f.write(template.render(package=package).encode('utf-8'))
+
+    # Edit src/pkg/MainActivity.java
+    template = env.get_template('src/package/MainActivity.java')
+    with open(app_path + 'src/%s/MainActivity.java' % package.replace('.', '/'), 'w') as f:
+        f.write(template.render(package=package).encode('utf-8'))
+
+    # Generate model/property dictionary from LTW configuration
+    # Dictionary structure:
+    #     {
+    #         model: {
+    #             'main': prop2,
+    #             'properties': [
+    #                 { 'id': prop1, 'is_list': False, 'is_img': True },
+    #                 { 'id': prop2, 'is_list': True, 'is_img': False },
+    #                 ...
+    #             ]
+    #         },
+    #         model2: { ... }
+    #     }
+
+    model_prop_dict = {}
+    model_props = config_graph.query(
+    '''
+        PREFIX ltw: <http://helheim.deusto.es/ltw/0.1#>
+        SELECT DISTINCT ?s ?model ?property ?prop_ont ?is_main where {
+            ?s a ltw:ClassItem ;
+                ltw:identifier ?model ;
+                ltw:hasPropertyItem ?prop .
+            ?prop ltw:ontologyProperty ?prop_ont ;
+                ltw:identifier ?property .
+            OPTIONAL { ?prop ltw:isMain ?is_main }
+        }
+    '''
+    )
+
+    for s, model, prop, prop_ont, is_main in model_props:
+        if model.lower() not in model_prop_dict:
+            model_prop_dict[model.lower()] = {}
+            model_prop_dict[model.lower()]['subject'] = s
+            model_prop_dict[model.lower()]['properties'] = []
+
+        if is_main:
+            model_prop_dict[model.lower()]['main'] = prop.lower()
+
+        model_prop_dict[model.lower()]['properties'].append(
+            { 'id': prop, 'is_list': check_if_list(graph_id, prop_ont), 'is_image': str(prop_ont) in IMG_PROPS, 'is_main': is_main }
+        )
+
+    # Generate Java classes and Android layouts for each model
+    model_template = env.get_template('src/package/model/model_template.java')
+    layout_template = env.get_template('res/layout/model_layout.xml')
+
+    for model_id, model in model_prop_dict.items():
+        # Update config file to add javaClass
+        config_graph.add( (URIRef(s), LTW.javaClass, Literal(package + ".model." + model_id.title())) )
+        # Generate model
+        with open(app_path + 'src/%s/model/%s.java' % ( package.replace('.', '/'), model_id.title() ), 'w') as f:
+            f.write(model_template.render(package=package, model=model_id, properties=model['properties']).encode('utf-8'))
+        # Generate layout
+        with open(app_path + 'res/layout/%s.xml' % model_id, 'w') as f:
+            f.write(layout_template.render(package=package, model=model_id, properties=model['properties']).encode('utf-8'))
+
+    # Save LTW config file in it's corresponding place
+    config_graph.bind('ltw', LTW)
+
+    with open(app_path + 'res/raw/config.ttl', 'w') as f:
+        f.write(config_graph.serialize(format='turtle').encode('utf-8'))
+
+    relative_lib_path = ''
+    for i in range(len(lib_path.split('/'))):
+        relative_lib_path += '../'
+    relative_lib_path = relative_lib_path[:-1] + lib_path
+
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 15, 'progress_msg': 'Creating app structure...'})
+    subprocess.call([ANDROID_BIN, 'update', 'project', '--path', app_path, '--target', 'android-18', '--name', app_name, '--library', relative_lib_path])
+
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 25, 'progress_msg': 'Building app...'})
+
+    i = 0
+    process = subprocess.Popen(['ant', '-f', lib_path + 'build.xml', 'clean'], stdout=subprocess.PIPE)
+    for line in iter(process.stdout.readline, ''):
+        sys.stdout.write(line)
+        i += 1
+        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(25 + (65 * float(i) / float(NUM_OF_PROCESS_MSGS))), 'progress_msg': 'Building app...'})
+
+    process = subprocess.Popen(['ant', '-f', app_path + 'build.xml', 'release'], stdout=subprocess.PIPE)
+    for line in iter(process.stdout.readline, ''):
+        sys.stdout.write(line)
+        i += 1
+        current_task.update_state(state='PROGRESS', meta={'progress_percent': int(25 + (65 * float(i) / float(NUM_OF_PROCESS_MSGS))), 'progress_msg': 'Building app...'})
+
+    current_task.update_state(state='PROGRESS', meta={'progress_percent': 95, 'progress_msg': 'Signing app...'})
+
+    return app_path
+
+
+def check_if_list(graph_id, prop_ont):
+    return False

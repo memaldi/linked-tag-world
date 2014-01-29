@@ -5,6 +5,7 @@ from wtforms.validators import DataRequired, url, ValidationError
 from flask_wtf.file import FileField
 from rdflib import ConjunctiveGraph, Graph
 
+import re
 
 SUPPORTED_RDF_SYNTAXES = {
     'xml': 'RDF/XML',
@@ -34,6 +35,14 @@ def validate_rdf_data(form, field):
         g.parse(data=field.data, format='turtle')
     except:
         raise ValidationError('Not well-formed RDF file.')
+
+def validate_java_package(form, field):
+    # Find non-alphanumeric and non-point characters in field
+    pattern = re.compile(r'[^\w\.]')
+    invalid_chars = list(set(pattern.findall(field.data)))
+    if invalid_chars:
+        raise ValidationError('Invalid characters for a Java package: %s' % ', '.join(invalid_chars))
+
 
 class RDFDataForm(Form):
     rdf_file = FileField('RDF file', validators=[DataRequired()])
@@ -69,3 +78,9 @@ class AppNameForm(Form):
 
 class ResourceEditForm(Form):
     pass
+
+class AndroidAppForm(Form):
+    app_name = TextField('App name', validators=[DataRequired()])
+    package = TextField('Java package', validators=[DataRequired(), validate_java_package])
+    launcher_icon = FileField('Launcher icon')
+    app_logo = FileField('Application logo')

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical" >
+
+    <ScrollView
+        android:id="@+id/scrollView1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" >
+
+        <LinearLayout
+            android:layout_width="318dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:orientation="vertical" >
+
+            <TextView
+                android:id="@+id/{{ model }}_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="%s"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textSize="25sp"
+                android:textStyle="bold|italic" />
+
+        {% for prop in properties %}
+            {% if prop.is_list %}
+            <LinearLayout
+                android:id="@+id/{{ model }}_{{ prop.id }}_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical" >
+
+                <TextView
+                    android:id="@+id/{{ model }}_{{ prop.id }}"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="{{ prop.id|title }}: %s"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+            </LinearLayout>
+            {% elif prop.is_image %}
+            <ImageView
+                android:id="@+id/{{ model }}_{{ prop.id }}"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center" />
+            {% elif not prop.is_main %} %}
+            <TextView
+                android:id="@+id/{{ model }}_{{ prop.id }}"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="{{ prop.id|title }}: %s"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+            {% endif %}
+        {% endfor %}
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

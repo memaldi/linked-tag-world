@@ -11,29 +11,34 @@
 
 from ltwserver import app, celery, login_manager
 from ltwserver.forms import TermListForm, RDFDataForm, SparqlForm, MyHiddenForm, ConfigEditForm, LoginForm, \
-    RegisterForm, AppNameForm, ResourceEditForm
-from wtforms.fields import TextField
+    RegisterForm, AppNameForm, ResourceEditForm, AndroidAppForm
+from ltwserver.tasks import generate_new_android_app
 from ltwserver.utils import get_resource_triples, get_next_resources, get_ltw_data_graph, get_ltw_config_graph, \
     search_dbpedia_trough_wikipedia, request_wants_rdf, call_to_generate_config_file, \
     call_to_get_all_data, get_data_paginators, get_literal_and_lang, get_dbpedia_resource_triples, \
-    SUPPORTED_RDF_HEADERS
+    zip_dir, get_ltw_uri, SUPPORTED_RDF_HEADERS
 from ltwserver.models import db, User, App, Endpoint
 from ltwserver.tasks import generate_config_file, get_all_data
 
 from flask.ext.login import login_user, logout_user, login_required, current_user
+from flask import session, request, redirect, url_for, render_template, make_response, send_file, flash, Response, send_from_directory
 
-from flask import session, request, redirect, url_for, render_template, make_response, send_file, flash, Response
+from wtforms.fields import TextField
 from celery.result import AsyncResult
 from StringIO import StringIO
 
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF
 
+from subprocess import call
+
 import urllib
 import json
 import uuid
 import os
 import qrcode
+import zipfile
+import shutil
 
 
 @login_manager.user_loader
@@ -203,6 +208,8 @@ def rdfsource_step2():
 
                 if config_edit_form.download_next.data == 'download':
                     return download_config_file(config_file=config_file)
+                elif config_edit_form.download_next.data == 'android':
+                    return redirect(url_for('generate_android_app',  app_id=session['app']))
                 else:
                     return redirect(url_for('rdfsource_step3', app_id=session['app']))
     return render_template('rdf_steps/rdf_step2.html', form=config_edit_form, app_id=session['app'])
@@ -244,7 +251,7 @@ def edit_resource(app_id, url):
     i = -1
 
     for i, triple in enumerate(sorted(res_data['triples'])):
-        if triple[1].language:
+        if isinstance(triple[1], Literal) and triple[1].language:
             default_txt = u'%s @ %s' % (unicode(triple[1]), triple[1].language)
         else:
             default_txt = triple[1]
@@ -291,6 +298,44 @@ def edit_resource(app_id, url):
 
         return render_template('edit_resource.html', data=res_data, app_id=app_id, url=url, resources=resources,
             form=form, number_of_fields=number_of_fields)
+
+
+@app.route('/ltwapp/<app_id>/android', methods=['GET', 'POST'])
+@login_required
+def generate_android_app(app_id):
+    ltwapp = App.query.filter_by(id=app_id).first()
+    app_details_form = AndroidAppForm(prefix='details')
+    app_path_form = MyHiddenForm(prefix='path')
+
+    if request.method == 'POST' and len(request.form.keys()) > 0:
+        if request.form.keys()[0].startswith('details-') and app_details_form.validate_on_submit():
+            ltwapp.app_name = app_details_form.app_name.data
+            ltwapp.app_package = app_details_form.package.data
+            db.session.commit()
+
+            t = generate_new_android_app.delay(app_details_form.app_name.data, app_details_form.package.data, ltwapp.config_file, ltwapp.graph_id)
+            return render_template('app_generation_1.html', form=app_path_form, app_id=app_id, task_id=t.task_id)
+        elif request.form.keys()[0].startswith('path-') and app_path_form.validate_on_submit():
+            app_path = json.loads(get_task_status(task_id=app_path_form.hidden_field.data, return_result=True))['result']
+            ltwapp.app_path = app_path
+            db.session.commit()
+
+            shutil.copyfile(app_path + 'bin/' + ltwapp.app_name + '-release.apk', app_path + '/' + ltwapp.app_name + '-release.apk')
+
+            call(['ant', '-f', app_path + 'build.xml', 'clean'])
+
+            zf = zipfile.ZipFile(app_path + 'androidapp-' + str(app_id) + '.zip', 'w')
+            zip_dir(app_path, zf, ['ant.properties', 'local.properties', 'project.properties', 'androidapp-' + str(app_id) + '.zip'])
+            zf.close()
+
+            flash('There you have your Android app. In the root of the ZIP file there is an APK ready to use. Enjoy!', 'success')
+
+            return send_from_directory(app_path, 'androidapp-' + str(app_id) + '.zip')
+    else:
+        app_details_form.app_name.data = ltwapp.name
+        app_details_form.package.data = 'eu.deustotech.internet.ltw.%s' % ltwapp.name.replace(' ', '_').lower()
+
+    return render_template('app_generation.html', form=app_details_form, app_id=app_id)
 
 
 @app.route('/newapp/nonrdfsource/', methods=['GET', 'POST'])
@@ -373,21 +418,22 @@ def add_external_triples():
 
 
 @app.route('/res/<graph_id>/<path:url>')
-@login_required
 def rdf_description_of_resource(graph_id, url):
     data_graph = get_ltw_data_graph(graph_id)
     requested_mimetype = request_wants_rdf()
     if requested_mimetype and data_graph != None:
         g = Graph()
         for p, o in data_graph.query('SELECT DISTINCT ?p ?o WHERE { <%s> ?p ?o }' % url):
-            g.add( (URIRef(url), p, o) )
+            if isinstance(o, URIRef):
+                g.add( (URIRef(url), p, URIRef(get_ltw_uri(str(o), graph_id))) )
+            else:
+                g.add( (URIRef(url), p, o) )
 
         return Response(response=g.serialize(format=SUPPORTED_RDF_HEADERS[requested_mimetype]), mimetype=requested_mimetype)
     return render_template('error/406_error.html'), 406
 
 
 @app.route('/qr/<path:url>/<size>')
-@login_required
 # Thanks to https://gist.github.com/plausibility/5787586
 def qr_route(url, size=10):
     qr = qrcode.QRCode(
