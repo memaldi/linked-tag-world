@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block header %}Welcome to Linked Tag World{% endblock %}
+
+{% block title %}<small>Login or register to start using LTW!</small>{% endblock %}
+
+{% block content %}
+<div class="row clearfix">
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Login</h3>
+      </div>
+      <div class="panel-body">
+        <form class="form-horizontal" name="loginform" action="{{ url_for('login') }}" method="POST">
+          {{ login_form.csrf_token }}
+          <fieldset>
+            {% if login_form.errors %}
+              {{ macros.with_errors(login_form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.form_field(3, 9, login_form.email, "inputemail") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(3, 9, login_form.password, "inputpasswd") }}
+            </div>
+            <label for="inputremember" class="col-lg-3 control-label">{{ login_form.remember_me.label }}*</label>
+            <div class="col-lg-8 col-lg-offset-1 checkbox">
+              <input type="checkbox">
+            </div>
+            <br /><br />
+            <div class="form-group">
+              <div class="col-lg-10 col-lg-offset-2">
+                <button type="submit" class="btn btn-primary">Login</button>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Register</h3>
+      </div>
+      <div class="panel-body">
+        <form class="form-horizontal" name="registerform" action="{{ url_for('register') }}" method="POST">
+          {{ register_form.csrf_token }}
+          <fieldset>
+            {% if register_form.errors %}
+              {{ macros.with_errors(register_form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.form_field(3, 9, register_form.name, "inputname") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(3, 9, register_form.email, "inputemail_reg") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(3, 9, register_form.password, "inputpasswd_reg") }}
+            </div>
+            <div class="form-group">
+              <div class="col-lg-10 col-lg-offset-2">
+                <button type="submit" class="btn btn-primary">Register</button>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

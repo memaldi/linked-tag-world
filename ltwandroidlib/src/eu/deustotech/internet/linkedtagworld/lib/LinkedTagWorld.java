@@ -433,20 +433,23 @@ public class LinkedTagWorld {
         	ClassItem classItem = getClassItem(prefixedTypeList);
 	        //Map<String, Widget> propertyMap = getPropertyMap(pageNode);
 	        //Map<String, Widget> propertyMap = new HashMap<String, Widget>();
-        	PropertyItem propItem = classItem.getMainPropertyItem();
         	
-            if (propItem != null) {
-            	Property prop = uriModel.getProperty(propItem.getOntologyProperty());
-                NodeIterator nodeIterator = uriModel.listObjectsOfProperty(prop);
-                
-                while(nodeIterator.hasNext()) {
-                	RDFNode rdfNode = nodeIterator.next();
-                	if (rdfNode.isLiteral()) {
-                		Literal literalNode = (Literal) rdfNode;
-                		return literalNode.getString();
-                	}
-                }
-            }
+        	if (classItem != null) {
+	        	PropertyItem propItem = classItem.getMainPropertyItem();
+	        	
+	            if (propItem != null) {
+	            	Property prop = uriModel.getProperty(propItem.getOntologyProperty());
+	                NodeIterator nodeIterator = uriModel.listObjectsOfProperty(prop);
+	                
+	                while(nodeIterator.hasNext()) {
+	                	RDFNode rdfNode = nodeIterator.next();
+	                	if (rdfNode.isLiteral()) {
+	                		Literal literalNode = (Literal) rdfNode;
+	                		return literalNode.getString();
+	                	}
+	                }
+	            }
+        	}
         }
         return null;
     }

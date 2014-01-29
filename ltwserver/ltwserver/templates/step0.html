@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block header %}Create new LTW app{% endblock %}
+
+{% block title %}Step 0 <small>Give a name to your app and select your data source</small>{% endblock %}
+
+{% block content %}
+<div class="row clearfix">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-body">
+        <form class="form-horizontal" id="appnameform" action="{{ url_for('configure') }}" method="POST">
+          {{ form.csrf_token }}
+          <fieldset>
+            {% if form.errors %}
+              {{ macros.with_errors(form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.form_field(2, 10, form.name, "inputname", placeholder="Name for the LTW app") }}
+            </div>
+            {{ form.data_source }}
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">RDF source</h3>
+      </div>
+      <div class="panel-body">
+        <p>
+          Select this option if you want to load already RDF-ized data. You can provide the URL of a SPARQL endpoint or upload a RDF file.
+        </p>
+        <p class="text-center">
+          <a href="#" onClick="nextstep('rdfsource')"><img src="{{ url_for('static', filename='img/rdf-icon.png') }}" class="img-rounded" height="90"></a>
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Non-RDF source</h3>
+      </div>
+      <div class="panel-body">
+        <p>
+          Select this option if you want to insert a list of terms. We will try to find related resources in DBpedia and build a new dataset from it, from which build the LTW app.</p>
+        </p>
+        <p class="text-center">
+          <a href="#" onClick="nextstep('nonrdfsource')"><img src="{{ url_for('static', filename='img/list-icon.png') }}" class="img-rounded" height="90"></a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script type="text/javascript">
+    function nextstep(src) {
+      $("#{{ form.data_source.id }}").val(src);
+      $("#appnameform").submit();
+    }
+  </script>
+{% endblock %}

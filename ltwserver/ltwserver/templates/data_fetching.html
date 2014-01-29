@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block header %}Visualize and enrich your data{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Fetching your data according to LTW configuration file</h3>
+      </div>
+      <div class="panel-body">
+        <div class="progress progress-striped active">
+          <div class="progress-bar" id="progress-bar" style="width: 10%"></div>
+        </div>
+        <div class="well well-sm" id="progress-msg">
+          <p class="text-success">Launching background task...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<form method="POST" action="{{ url_for('rdfsource_step3', app_id=app_id) }}" id="dataform">
+  {{ form.csrf_token }}
+  {{ form.hidden_field }}
+</form>
+{% endblock %}
+
+{% block scripts %}
+  <script type="text/javascript">
+  function onsuccess(result) {
+    $("#{{ form.hidden_field.id }}").val("{{ task_id }}");
+    $("#dataform").submit();//window.location.replace("{{ url_for('rdfsource_step2') }}");")
+  }
+  </script>
+  {{ macros.task_status_bar(task_id=task_id, progress_msg_id="progress-msg", progress_bar_id="progress-bar", interval=2000, on_success="onsuccess") }}
+{% endblock %}

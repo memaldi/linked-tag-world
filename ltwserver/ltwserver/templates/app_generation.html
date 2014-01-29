@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block header %}Generate the Android app{% endblock %}
+
+{% block content %}
+<div class="row clearfix">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Give the details of your app</h3>
+      </div>
+      <div class="panel-body">
+        <form class="form-horizontal" id="appnameform" action="{{ url_for('generate_android_app', app_id=app_id) }}" method="POST">
+          {{ form.csrf_token }}
+          <fieldset>
+            {% if form.errors %}
+              {{ macros.with_errors(form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.form_field(2, 10, form.app_name, "inputname", placeholder="Name for the Android app") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(2, 10, form.package, "inputpackage", placeholder="Java package of the Android app") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(2, 10, form.launcher_icon, "inputicon") }}
+            </div>
+            <div class="form-group">
+              {{ macros.form_field(2, 10, form.app_logo, "inputlogo") }}
+            </div>
+          </fieldset>
+          <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+              <button type="submit" class="btn btn-primary">Generate!</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

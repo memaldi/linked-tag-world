@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block header %}Visualize and enrich your data{% endblock %}
+
+{% block title %}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Edit and enrich the data</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="nav nav-pills" id="class_tabs">
+          {% for class_uri, paginator in paginators.items() %}
+            <li class="{% if loop.index0 == 0 %}active{% endif %}">
+              <a href="#content_tab_{{ paginator.id }}" data-toggle="tab">
+                {{ paginator.id }} <span class="badge">{{ paginator.total }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="tab-content">
+          {% for class_uri, paginator in paginators.items() %}
+            <div class="tab-pane{% if loop.index0 == 0 %} active{% endif %}" id="content_tab_{{ paginator.id }}">
+              <div><ul id="pagination_{{ loop.index0|string }}" class="pagination"></ul></div>
+              <div id="data_tabs_{{ loop.index0|string }}">
+                {{ macros.data_tabs(paginator.data, paginator.id, app_id) }}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/bootstrap-paginator.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/jquery.lazyload.min.js') }}"></script>
+  <script type="text/javascript">
+    // $(function() {
+    //   $("img.lazy").lazyload({
+    //       event : "sporty"
+    //   });
+    //   $('#class_tabs a').click(function (e) {
+    //     $("img.lazy").trigger("sporty")
+    //   })
+    // });
+    $(function() {
+        $("img.lazy").lazyload();
+    });
+  </script>
+  <script type="text/javascript">
+    {% for class_uri, paginator in paginators.items() %}
+      var options_{{ loop.index0|string }} = {
+          bootstrapMajorVersion: 3,
+          currentPage: 1,
+          totalPages: {{ paginator.pages }},
+            onPageClicked: function(e,originalEvent,type,page){
+              $.getJSON('/_get_next_page',
+                  {
+                    class_uri: "{{ class_uri }}",
+                    class_id: "{{ paginator.id }}",
+                    page: page
+                  },
+                  function(data) {
+                    var html_tab = '<div id="data_tabs_{{ loop.index0|string }}">';
+                    html_tab += data['html']; //generate_data_tab_html(data);
+                    html_tab += '</div>';
+
+                    $("#data_tabs_{{ loop.index0|string }}").replaceWith(html_tab);
+                  });
+          }
+      }
+      $('#pagination_{{ loop.index0|string }}').bootstrapPaginator(options_{{ loop.index0|string }});
+    {% endfor %}
+  </script>
+{% endblock %}
+

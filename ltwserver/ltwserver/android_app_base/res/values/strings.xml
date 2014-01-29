@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">{{ app_name }}</string>
+    <string name="action_settings">Settings</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="bs_popup_title">Can not find the Barcode Scanner</string>
+    <string name="bs_popup_message">The use of this application requires “Barcode Scanner”. Press “ok” to download it from the Android Market or “cancel” to close the application.</string>
+    <string name="bs_OK_button">OK</string>
+    <string name="bs_CANCEL_button">Cancel</string>
+    <string name="qr_error">Unable to retrieve the information.</string>
+
+</resources>

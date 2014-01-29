@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block header %}Configure LTW{% endblock %}
+
+{% block title %}Step 1 <small>Insert your term list</small>{% endblock %}
+
+{% block content %}
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Term list</h3>
+    </div>
+    <div class="panel-body">
+      <form class="form-horizontal" action="{{ url_for('nonrdfsource') }}" method="POST">
+        {{ form.csrf_token }}
+        <fieldset>
+          {% if form.errors %}
+            {{ macros.with_errors(form) }}
+          {% endif %}
+          <div class="form-group">
+            {{ macros.field2_10(form.term_list, "inputtermlist", rows=15) }}
+          </div>
+          <div class="form-group">
+            <div class="col-lg-10 col-lg-offset-2">
+              <button type="submit" class="btn btn-primary">Submit</button> 
+            </div>
+          </div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+{% endblock %}

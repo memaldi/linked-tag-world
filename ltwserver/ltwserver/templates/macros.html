@@ -1,0 +1,159 @@
+{% macro with_errors(form) %}
+  <div class="alert alert-dismissable alert-danger fade in">
+    <button type="button" class="close" data-dismiss="alert">×</button>
+    <ul>
+    {% for field_name, field_errors in form.errors|dictsort if field_errors %}
+      {% for error in field_errors %}
+        <li>{{ form[field_name].label }}: {{ error }}</li>
+      {% endfor %}
+    {% endfor %}
+    </ul>
+  </div>
+{% endmacro %}
+
+
+{% macro flashed_messages() %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-dismissable alert-{{ category }} fade in">
+          <button type="button" class="close" data-dismiss="alert">×</button>
+          <ul>
+            <li>{{ message }}</li>
+          </ul>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+{% endmacro %}
+
+
+{% macro field2_10(field, field_id) %}
+  <label for={{ field_id }} class="col-lg-2 control-label {% if field.errors %}text-danger{% endif %}">{{ field.label }}{% if field.flags.required %}*{% endif %}</label>
+  <div class="col-lg-10 {% if field.errors %}has-error{% endif %}">
+    {{ field(id=field_id, class="form-control", **kwargs) }}
+  </div>
+{% endmacro %}
+
+
+{% macro form_field(text_size, field_size, field, field_id) %}
+  <label for={{ field_id }} class="col-lg-{{ text_size }} control-label {% if field.errors %}text-danger{% endif %}">{{ field.label }}{% if field.flags.required %}*{% endif %}</label>
+  <div class="col-lg-{{ field_size }} {% if field.errors %}has-error{% endif %}">
+    {{ field(id=field_id, class="form-control", **kwargs) }}
+  </div>
+{% endmacro %}
+
+
+{% macro form_field_with_popup(text_size, field_size, field, field_id) %}
+  <label for={{ field_id }} class="col-lg-{{ text_size }} control-label {% if field.errors %}text-danger{% endif %}">
+    <a id="pop_{{ field_id }}">{{ field.label }}{% if field.flags.required %}*{% endif %}</a>
+  </label>
+  <div class="col-lg-{{ field_size }} {% if field.errors %}has-error{% endif %}">
+    {{ field(id=field_id, class="form-control", **kwargs) }}
+  </div>
+{% endmacro %}
+
+
+{% macro task_status_bar(task_id, progress_msg_id, progress_bar_id, interval=500, on_success=None, on_error=None) %}
+ <script type="text/javascript">
+  $(document).ready(function() {
+    // pole state of the current task
+    var percent = 10;
+    var interval = setInterval(function() {
+      $.getJSON('/_get_task_status', {task_id: "{{ task_id }}"},
+        function(data) {
+          var last_p_txt = $("#{{ progress_msg_id }} p:last-child").text();
+          if (data.status == 'FAILURE') {
+            clearInterval(interval);
+            $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' ERROR!');
+            $("#{{ progress_msg_id }} p:last-child").addClass("text-danger");
+            $("#{{ progress_msg_id }}").append( "<p class='text-danger'>" + data.result + "</p>" );
+            {% if on_error %}
+              {{ on_error }}(data.result);
+            {% endif %}
+          }
+          else if (data.status == 'SUCCESS' || (data.result && parseInt(data.result.progress_percent) > percent)) {
+            if (data.status == 'SUCCESS') {
+              $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
+              $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
+              clearInterval(interval);
+              percent = 100;
+              $("#{{ progress_msg_id }}").append( "<p class=\"text-success\">Done!</p>" );
+              {% if on_success %}
+                {{ on_success }}(data.result);
+              {% endif %}
+            }
+            else {
+              percent = parseInt(data.result.progress_percent);
+              if (data.result && data.result.progress_msg && last_p_txt != data.result.progress_msg) {
+                $("#{{ progress_msg_id }} p:last-child").text(last_p_txt + ' OK!');
+                $("#{{ progress_msg_id }} p:last-child").addClass("text-success");
+                $("#{{ progress_msg_id }}").append( "<p>" + data.result.progress_msg + "</p>" );
+              }
+            }
+            $("#{{ progress_bar_id }}").css({'width': percent + '%'});
+          }
+      });
+    }, {{ interval }})
+  });
+ </script>
+{% endmacro %}
+
+
+{% macro data_tabs(data_dict, id, app_id, pagination) %}
+  <div class="panel-group" id="accordion">
+    {% for s, data in data_dict.items() %}
+        <p>
+          <div class="panel panel-primary">
+            <div class="media">
+              <a class="pull-left" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">
+                {% if not pagination %}
+                  <img class="media-object lazy" width="80" data-original="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
+                {% else %}
+                  <img class="media-object" width="80" src="{{ url_for('qr_route', url=data.ltwuri, size=2) }}">
+                {% endif %}
+              </a>
+              <div class="media-body">
+                <p><h4 class="media-heading">{% if data_dict[s].main %} {{ data_dict[s].main }} <small>{{ s }}</small> {% else %} {{ s }} {% endif %}</h4></p>
+                <a class="btn btn-primary btn-sm" data-toggle="collapse" data-parent="#accordion" href="#collapse_{{ id }}_{{ loop.index0|string }}">More</a>
+                <a class="btn btn-primary btn-sm" href="{{ url_for('edit_resource', app_id=app_id, url=s) }}">Edit & enrich!</a>
+              </div>
+            </div>
+
+            <div id="collapse_{{ id }}_{{ loop.index0|string }}" class="panel-collapse collapse">
+              <div class="panel-body">
+                <table class="table table-condensed">
+                  <tbody>
+                    {% for triple in data.triples %}
+                      <tr>
+                        <td>{{ triple[0] }}</td>
+                        <td>{{ triple[1] }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </p>
+        <!--div class="panel panel-default"-->
+
+      <!--/div-->
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro triples_table(uri, triples) %}
+  <table class="table table-condensed">
+    <tbody>
+      {% for triple in triples %}
+        <tr>
+          <td>{{ triple.p }}</td>
+          <td>{{ triple.o }}{% if triple.lang %} @ {{ triple.lang }}{% endif %}</td>
+          <td><button type="button" class="btn btn-primary btn-sm" onclick="addTriple(this, '{{ uri|urlencode }}', '{{ triple.p|urlencode }}', '{{ triple.o|urlencode }}')">Add triple</button></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endmacro %}

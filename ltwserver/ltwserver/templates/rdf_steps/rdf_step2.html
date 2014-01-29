@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link href="{{ url_for('static', filename='css/codemirror.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block header %}Create new LTW app{% endblock %}
+
+{% block title %}Step 2 <small>Edit or download your LTW configuration file</small>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">LTW configuration file</h3>
+      </div>
+      <div class="panel-body">
+        <div class="col-md-9" id="code">
+          <form class="form-horizontal" action="{{ url_for('rdfsource_step2') }}" method="POST" id="configform">
+            {{ form.csrf_token }}
+            {{ form.download_next }}
+            <fieldset>
+              {% if form.errors %}
+                {{ macros.with_errors(form) }}
+              {% endif %}
+              <div class="form-group">
+                <div class="{% if form.config_file.errors %}has-error{% endif %}">
+                  {{ form.config_file(class="form-control", rows=30) }}
+                </div>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+        <div class="well well-sm col-md-3">
+          <p>This is your LTW configuration file. You can edit it directly here.</p>
+          <p>Once you have edited it, you have three options:</p>
+          <ul>
+            <li>Let us store, publish and try to enrich your data with Linked Data. We will build your QR codes and your Android app too! Just <a href="#" onclick="nextStep('next')">click here!</a></li>
+            <li>Publish your RDF dataset by yourself, but build your Android app automatically <a href="#" onclick="nextStep('android')">clicking here</a>.</li>
+            <li><a href="#" onclick="nextStep('download')">Download your LTW configuration file</a> and start building your Android app manually (remember that you have to add the ltw:javaClass triples when corresponding). You have the LTW android library <a href="#">here</a> and the docs <a href="#">here</a>.</li>
+          </ul>
+          {# button type="button" class="btn btn-primary btn-sm col-md-6" id="downloadbutton">Download</button>
+          <button type="button" class="btn btn-primary btn-sm col-md-6" id="nextbutton">Next</button> #}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/codemirror-compressed.js') }}"></script>
+<script type="text/javascript">
+  var textvalue = $('#{{ form.config_file.id }}').val();
+
+  var myCodeMirror = CodeMirror.fromTextArea(document.getElementById("{{ form.config_file.id }}"), {
+    value: textvalue,
+    mode:  "turtle",
+    lineWrapping: true,
+    //readOnly: 'nocursor',
+  });
+  myCodeMirror.setSize($("#{{ form.config_file.id }}").width(), $("#{{ form.config_file.id }}").height());
+</script>
+
+<script type="text/javascript">
+  function nextStep(action) {
+    myCodeMirror.save();
+    $("#{{ form.download_next.id }}").val(action);
+    $( "#configform" ).submit();
+  };
+</script>
+{% endblock %}

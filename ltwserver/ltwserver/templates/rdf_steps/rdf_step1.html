@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block header %}Create new LTW app{% endblock %}
+
+{% block title %}Step 1 <small>Import your RDF data</small>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">SPARQL Endpoint</h3>
+      </div>
+      <div class="panel-body">
+        <form class="form-horizontal" name="endpointform" action="{{ url_for('rdfsource') }}" method="POST">
+          {{ sparql_form.csrf_token }}
+          <fieldset>
+            {% if sparql_form.errors %}
+              {{ macros.with_errors(sparql_form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.field2_10(sparql_form.url, "inputsparql", placeholder="SPARQL Endpoint URL") }}
+            </div>
+            <div class="form-group">
+              {{ macros.field2_10(sparql_form.graph, "inputsparql", placeholder="Graph in which data is stored, if any") }}
+            </div>
+            <div class="form-group">
+              <div class="col-lg-10 col-lg-offset-2">
+                <button type="submit" class="btn btn-primary">Submit</button>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title">Upload RDF data</h3>
+      </div>
+      <div class="panel-body">
+        <form class="form-horizontal" id="rdfform" name="rdfform" action="{{ url_for('rdfsource') }}" method="POST" enctype="multipart/form-data">
+          {{ rdf_form.csrf_token }}
+          <fieldset>
+            {% if rdf_form.errors %}
+              {{ macros.with_errors(rdf_form) }}
+            {% endif %}
+            <div class="form-group">
+              {{ macros.field2_10(rdf_form.rdf_file, "inputrdf") }}
+            </div>
+            <div class="form-group">
+              {{ macros.field2_10(rdf_form.format, "inputformat") }}
+            </div>
+            <div class="form-group">
+              <div class="col-lg-10 col-lg-offset-2">
+                <button type="submit" class="btn btn-primary">Upload</button>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+  boxes = $('.panel');
+  maxHeight = Math.max.apply(
+    Math, boxes.map(function() {
+      return $(this).height();
+  }).get());
+  boxes.height(maxHeight);
+</script>
+{% endblock %}
